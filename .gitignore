@@ -1,0 +1,37 @@
+# Dependencies
+apps/api/node_modules/
+node_modules/
+npm-debug.log
+yarn-error.log
+package-lock.json
+yarn.lock
+
+# Production
+apps/api/build/
+apps/api/dist/
+apps/api/out/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.sublime-workspace
+
+# Environment
+.env
+
+# Testing
+coverage/
+.nyc_output/
+
+# Logs
+*.log
+
+# OS
+Thumbs.db
+.DS_Store
+.AppleDouble
+.LSOverride
