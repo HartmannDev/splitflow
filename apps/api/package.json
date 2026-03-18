@@ -4,7 +4,7 @@
 	"description": "",
 	"main": "index.js",
 	"scripts": {
-		"dev": "node --watch --env-file=.env src/server.ts "
+		"dev": "nodemon -L --watch src --ext ts --exec \"node --env-file=.env\" src/server.ts"
 	},
 	"keywords": [],
 	"author": "",
@@ -21,6 +21,10 @@
 		"zod": "^4.3.6"
 	},
 	"devDependencies": {
-		"@types/node": "^25.4.0"
+		"@types/node": "^25.5.0",
+		"@types/pg": "^8.18.0",
+		"nodemon": "^3.1.14",
+		"ts-node": "^10.9.2",
+		"typescript": "^5.9.3"
 	}
 }

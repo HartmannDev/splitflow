@@ -12,6 +12,7 @@ import { fastifySwaggerUi } from '@fastify/swagger-ui'
 
 import { transactionsRoute } from './modules/transactions/route.ts'
 import { errorHandler } from './common/error-handler.ts'
+import { db } from './db/db.ts'
 
 const app = fastify({ logger: true }).withTypeProvider<ZodTypeProvider>()
 
@@ -46,11 +47,16 @@ app.setNotFoundHandler((request, reply) => {
 	})
 })
 
-app.listen({ port: 3000, host: '0.0.0.0' }, (err, address) => {
-	if (err) {
-		app.log.error(err)
+try {
+	await db.testConnection()
+
+	app.listen({ port: 3000, host: '0.0.0.0' }, (address) => {
+		app.log.error(`server listening on ${address}`)
+	})
+} catch (error) {
+	if (error) {
+		db.closePool()
+		app.log.error(error)
 		process.exit(1)
 	}
-
-	app.log.error(`server listening on ${address}`)
-})
+}
