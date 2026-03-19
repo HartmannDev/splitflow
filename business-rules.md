@@ -869,6 +869,7 @@ If needed later, enums can be replaced by another strategy, but current directio
 ### Naming
 
 Use `snake_case` in the database.
+Use `camelCase` in the source code.
 
 ---
 
