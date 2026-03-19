@@ -9,7 +9,11 @@ services:
       - .:/app
       - /app/node_modules
     environment:
-      DATABASE_URL: postgresql://postgres:postgres@db:5432/splitflow
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DATABASE: splitflow
     depends_on:
       db:
         condition: service_healthy
