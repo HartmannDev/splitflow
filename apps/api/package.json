@@ -4,7 +4,8 @@
 	"description": "",
 	"main": "index.js",
 	"scripts": {
-		"dev": "nodemon -L --watch src --ext ts --exec \"node --env-file=.env\" src/server.ts"
+		"dev": "nodemon -L --watch src --ext ts --exec \"node --env-file=.env\" src/server.ts",
+		"migrate": "node --env-file=.env src/db/migrate.ts"
 	},
 	"keywords": [],
 	"author": "",
@@ -14,13 +15,14 @@
 		"@fastify/cors": "^11.2.0",
 		"@fastify/swagger": "^9.7.0",
 		"@fastify/swagger-ui": "^5.2.5",
+		"bcrypt": "^6.0.0",
 		"fastify": "^5.8.2",
 		"fastify-type-provider-zod": "^6.1.0",
-		"kysely": "^0.28.12",
 		"pg": "^8.20.0",
 		"zod": "^4.3.6"
 	},
 	"devDependencies": {
+		"@types/bcrypt": "^6.0.0",
 		"@types/node": "^25.5.0",
 		"@types/pg": "^8.18.0",
 		"nodemon": "^3.1.14",
