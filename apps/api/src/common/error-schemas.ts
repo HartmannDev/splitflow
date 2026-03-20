@@ -14,21 +14,21 @@ export const BadRequestErrorResponseSchema = ErrorResponseSchema.extend({
 export const NotFoundErrorResponseSchema = ErrorResponseSchema.extend({
 	statusCode: z.literal(404),
 	error: z.literal('Not Found'),
+	message: z.string(),
 })
 
 export const InternalServerErrorResponseSchema = ErrorResponseSchema.extend({
 	statusCode: z.literal(500),
-	error: z.literal('Internal Server Error'),
 })
 
-export const CommonRouteErrorResponses = {
-	400: BadRequestErrorResponseSchema.describe('Bad Request: Invalid input data'),
-	500: InternalServerErrorResponseSchema.describe('Internal Server Error: Unexpected error'),
-} as const
+export const ConflictErrorResponseSchema = ErrorResponseSchema.extend({
+	statusCode: z.literal(409),
+	error: z.literal('ConflictError'),
+	message: z.string(),
+})
 
-export function withCommonErrorResponses<T extends Record<string | number, unknown>>(responses: T) {
-	return {
-		...responses,
-		...CommonRouteErrorResponses,
-	}
-}
+export const ForbiddenErrorResponseSchema = ErrorResponseSchema.extend({
+	statusCode: z.literal(403),
+	error: z.literal('Forbidden'),
+	message: z.string(),
+})

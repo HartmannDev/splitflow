@@ -1,4 +1,5 @@
 import type { FastifyError, FastifyReply, FastifyRequest } from 'fastify'
+import { ZodError } from 'zod'
 
 export const errorHandler = (error: FastifyError, request: FastifyRequest, reply: FastifyReply) => {
 	request.log.error(error)
@@ -8,6 +9,20 @@ export const errorHandler = (error: FastifyError, request: FastifyRequest, reply
 			statusCode: 400,
 			error: 'Bad Request',
 			message: error.message,
+		})
+	}
+
+	if (error instanceof ZodError) {
+		const validationIssueMessage = error.issues.reduce((acc, issue) => {
+			acc += `Field '${issue.path.join('.')}' => ${issue.message} | `
+			console.log(acc)
+			return acc
+		}, '')
+
+		return reply.status(500).send({
+			statusCode: 500,
+			error: 'Internal Server Error - Response Validation Failed',
+			message: validationIssueMessage,
 		})
 	}
 
