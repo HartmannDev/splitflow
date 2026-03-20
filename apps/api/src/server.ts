@@ -11,6 +11,7 @@ import { fastifyCors } from '@fastify/cors'
 import { fastifySwaggerUi } from '@fastify/swagger-ui'
 
 import { transactionsRoute } from './modules/transactions/route.ts'
+import { UsersRoute } from './modules/users.ts/route.ts'
 import { errorHandler } from './common/error-handler.ts'
 import { db } from './db/db.ts'
 
@@ -36,6 +37,7 @@ app.register(fastifySwaggerUi, {
 })
 
 app.register(transactionsRoute)
+app.register(UsersRoute)
 
 app.setErrorHandler(errorHandler)
 
