@@ -54,4 +54,5 @@ export const db = {
 	transaction,
 	closePool,
 	testConnection,
+	pool,
 }

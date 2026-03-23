@@ -9,13 +9,16 @@ import {
 import { fastifySwagger } from '@fastify/swagger'
 import { fastifyCors } from '@fastify/cors'
 import { fastifySwaggerUi } from '@fastify/swagger-ui'
+import { fastifySession } from '@fastify/session'
+import { fastifyCookie } from '@fastify/cookie'
 
-import { transactionsRoute } from './modules/transactions/route.ts'
-import { UsersRoute } from './modules/users.ts/route.ts'
+import { UsersRoute } from './modules/users/route.ts'
 import { errorHandler } from './common/error-handler.ts'
 import { db } from './db/db.ts'
+import { authRoute } from './modules/auth/route.ts'
+import { PgSessionStore } from './modules/auth/pg-session-store.ts'
 
-const app = fastify({ logger: true }).withTypeProvider<ZodTypeProvider>()
+const app = fastify({ logger: { transport: { target: 'pino-pretty' } } }).withTypeProvider<ZodTypeProvider>()
 
 app.setSerializerCompiler(serializerCompiler)
 app.setValidatorCompiler(validatorCompiler)
@@ -36,7 +39,7 @@ app.register(fastifySwaggerUi, {
 	routePrefix: '/docs',
 })
 
-app.register(transactionsRoute)
+app.register(authRoute)
 app.register(UsersRoute)
 
 app.setErrorHandler(errorHandler)
@@ -47,6 +50,21 @@ app.setNotFoundHandler((request, reply) => {
 		error: 'Not Found',
 		message: `Route ${request.method} ${request.url} not found`,
 	})
+})
+
+app.register(fastifyCookie)
+app.register(fastifySession, {
+	store: new PgSessionStore(db.pool),
+	cookieName: 'splitflow.sid',
+	secret: process.env.SESSION_SECRET ?? 'xxxxx',
+	saveUninitialized: false,
+	cookie: {
+		path: '/',
+		httpOnly: true,
+		secure: process.env.NODE_ENV === 'prod',
+		sameSite: 'lax',
+		maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
+	},
 })
 
 try {

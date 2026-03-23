@@ -423,4 +423,14 @@ CREATE INDEX transactions_source_shared_transaction_participant_id_idx
 	ON transactions (source_shared_transaction_participant_id)
 	WHERE source_shared_transaction_participant_id IS NOT NULL;
 
+CREATE TABLE sessions (
+  sid TEXT PRIMARY KEY,
+  sess JSONB NOT NULL,
+  expires_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX sessions_expires_at_idx ON sessions (expires_at);
+
 COMMIT;

@@ -32,3 +32,9 @@ export const ForbiddenErrorResponseSchema = ErrorResponseSchema.extend({
 	error: z.literal('Forbidden'),
 	message: z.string(),
 })
+
+export const UnauthorizedErrorResponseSchema = ErrorResponseSchema.extend({
+	statusCode: z.number().default(401),
+	error: z.string().default('Unauthorized'),
+	message: z.string(),
+})
