@@ -7,14 +7,6 @@ import { type CreateUserInput, type UserID, UserIDSchema, UserListSchema } from 
 import { db } from '../../db/db.ts'
 import { validatedResponse } from '../../common/response-validator.ts'
 
-type CreateUserRequest = FastifyRequest<{
-	Body: CreateUserInput
-}>
-
-type DeleteUserRequest = FastifyRequest<{
-	Params: UserID
-}>
-
 const passwordPepper = process.env.PASSWORD_PEPPER
 
 if (!passwordPepper) {
@@ -40,11 +32,12 @@ export const getUsers = async (_req: FastifyRequest, res: FastifyReply) => {
 	return validatedResponse(res, 200, UserListSchema, payload.rows)
 }
 
-export const createUser = async (req: CreateUserRequest, res: FastifyReply) => {
-	const { role, name, lastname, email, password } = req.body
+export const createUser = async (req: FastifyRequest, res: FastifyReply) => {
+	const { name, lastname, email, password } = req.body as CreateUserInput
 	const userID = randomUUID()
 	const passwordSalt = await bcrypt.genSalt(10)
 	const passwordHash = await bcrypt.hash(password + passwordPepper, passwordSalt)
+	const normalizedEmail = email.toLowerCase()
 
 	try {
 		await db.query(
@@ -56,12 +49,11 @@ export const createUser = async (req: CreateUserRequest, res: FastifyReply) => {
 					last_name,
 					email,
 					password_hash,
-					password_salt,
 					email_verified_at
 				) VALUES
 				($1, $2, $3, $4, $5, $6, $7, $8)
 			`,
-			[userID, role, name, lastname, email, passwordHash, passwordSalt, null],
+			[userID, 'user', name, lastname, normalizedEmail, passwordHash, null],
 		)
 		return validatedResponse(res, 201, UserIDSchema, { message: 'User created successfully', userID })
 	} catch (error) {
@@ -73,8 +65,8 @@ export const createUser = async (req: CreateUserRequest, res: FastifyReply) => {
 	}
 }
 
-export const deleteUser = async (req: DeleteUserRequest, res: FastifyReply) => {
-	const { id } = req.params
+export const deleteUser = async (req: FastifyRequest, res: FastifyReply) => {
+	const { id } = req.params as UserID
 	const result = await db.query(
 		`
     UPDATE users 

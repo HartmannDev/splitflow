@@ -30,6 +30,7 @@ export const PublicUserSchema = UserSchema.omit({
 
 export const CreateUserSchema = PublicUserSchema.omit({
 	id: true,
+	role: true,
 	isActive: true,
 	emailVerifiedAt: true,
 	createdAt: true,

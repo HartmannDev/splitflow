@@ -1,9 +1,10 @@
 import type { FastifyInstance } from 'fastify'
 import { login, logout, me } from './controller.ts'
 import { loginOptions, meOptions, logoutOptions } from './docs.ts'
+import { requireAuth } from './route-validator.ts'
 
 export async function authRoute(app: FastifyInstance) {
 	app.post('/login', { schema: loginOptions }, login)
-	app.post('/logout', { schema: logoutOptions }, logout)
-	app.get('/me', { schema: meOptions }, me)
+	app.post('/logout', { schema: logoutOptions, preHandler: requireAuth }, logout)
+	app.get('/me', { schema: meOptions, preHandler: requireAuth }, me)
 }

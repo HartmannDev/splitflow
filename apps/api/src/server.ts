@@ -39,19 +39,6 @@ app.register(fastifySwaggerUi, {
 	routePrefix: '/docs',
 })
 
-app.register(authRoute)
-app.register(UsersRoute)
-
-app.setErrorHandler(errorHandler)
-
-app.setNotFoundHandler((request, reply) => {
-	reply.status(404).send({
-		statusCode: 404,
-		error: 'Not Found',
-		message: `Route ${request.method} ${request.url} not found`,
-	})
-})
-
 app.register(fastifyCookie)
 app.register(fastifySession, {
 	store: new PgSessionStore(db.pool),
@@ -66,6 +53,19 @@ app.register(fastifySession, {
 		maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
 	},
 })
+
+app.setErrorHandler(errorHandler)
+
+app.setNotFoundHandler((request, reply) => {
+	reply.status(404).send({
+		statusCode: 404,
+		error: 'Not Found',
+		message: `Route ${request.method} ${request.url} not found`,
+	})
+})
+
+app.register(authRoute)
+app.register(UsersRoute)
 
 try {
 	await db.testConnection()

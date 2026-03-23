@@ -6,15 +6,17 @@ import {
 	ForbiddenErrorResponseSchema,
 	InternalServerErrorResponseSchema,
 	NotFoundErrorResponseSchema,
+	UnauthorizedErrorResponseSchema,
 } from '../../common/error-schemas.ts'
 
-import type { FastifyOpenApiSchema } from '../../types/swagger'
+import type { FastifyOpenApiSchema } from '../../types/swagger.ts'
 
 export const getUsersOptions: FastifyOpenApiSchema = {
 	description: 'Get a list of users',
 	tags: ['Users'],
 	response: {
 		200: UserListSchema.describe('Successful response with a list of users'),
+		401: UnauthorizedErrorResponseSchema.describe('Unauthorized: You must be logged in to access this resource'),
 		403: ForbiddenErrorResponseSchema.describe('Forbidden: You do not have permission to access this resource'),
 		500: InternalServerErrorResponseSchema.describe('Internal Server Error: Unexpected error'),
 	},
@@ -40,6 +42,8 @@ export const deleteUserOptions: FastifyOpenApiSchema = {
 	params: UserIDSchema,
 	response: {
 		200: DeleteUserResponseSchema.describe('User deleted successfully'),
+		401: UnauthorizedErrorResponseSchema.describe('Unauthorized: You must be logged in to access this resource'),
+		403: ForbiddenErrorResponseSchema.describe('Forbidden: You do not have permission to access this resource'),
 		404: NotFoundErrorResponseSchema.describe('Not Found: User does not exist'),
 		500: InternalServerErrorResponseSchema.describe('Internal Server Error: Unexpected error'),
 	},

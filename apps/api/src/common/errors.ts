@@ -14,3 +14,15 @@ export const notFoundError = (message: string) =>
 		name: 'Not Found',
 		statusCode: 404,
 	})
+
+export const unauthorizedError = (message: string) =>
+	Object.assign(new Error(message), {
+		name: 'Unauthorized',
+		statusCode: 401,
+	})
+
+export const forbiddenError = (message: string) =>
+	Object.assign(new Error(message), {
+		name: 'Forbidden',
+		statusCode: 403,
+	})
