@@ -6,8 +6,7 @@ import type { LoginInput } from './model.ts'
 
 import { db } from '../../db/db.ts'
 import { verifyHash } from './hash-validator.ts'
-import { UserIDSchema, type CreateUserInput } from '../users/model.ts'
-import { validatedResponse } from '../../common/response-validator.ts'
+import type { CreateUserInput } from '../users/model.ts'
 import { conflictError, isDatabaseError } from '../../common/errors.ts'
 
 const passwordPepper = process.env.PASSWORD_PEPPER
