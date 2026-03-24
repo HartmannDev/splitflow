@@ -1,85 +1,28 @@
 import process from 'node:process'
-import { fastify } from 'fastify'
-import {
-	serializerCompiler,
-	validatorCompiler,
-	jsonSchemaTransform,
-	type ZodTypeProvider,
-} from 'fastify-type-provider-zod'
-import { fastifySwagger } from '@fastify/swagger'
-import { fastifyCors } from '@fastify/cors'
-import { fastifySwaggerUi } from '@fastify/swagger-ui'
-import { fastifySession } from '@fastify/session'
-import { fastifyCookie } from '@fastify/cookie'
 
-import { UsersRoute } from './modules/users/route.ts'
-import { errorHandler } from './common/error-handler.ts'
 import { db } from './db/db.ts'
-import { authRoute } from './modules/auth/route.ts'
-import { PgSessionStore } from './modules/auth/pg-session-store.ts'
+import { buildApp } from './app.ts'
 
-const app = fastify({ logger: { transport: { target: 'pino-pretty' } } }).withTypeProvider<ZodTypeProvider>()
+const port = process.env.PORT ? parseInt(process.env.PORT) : 3000
+const host = process.env.HOST || '0.0.0.0'
+const nodeEnv = process.env.NODE_ENV === 'production' ? 'prod' : 'dev'
+const sessionSecret = process.env.SESSION_SECRET
 
-app.setSerializerCompiler(serializerCompiler)
-app.setValidatorCompiler(validatorCompiler)
+if (!sessionSecret) {
+	console.error('SESSION_SECRET environment variable is required')
+	process.exit(1)
+}
 
-app.register(fastifyCors, { origin: '*' })
-
-app.register(fastifySwagger, {
-	openapi: {
-		info: {
-			title: 'SplitFlow API Documentation',
-			version: '1.0.0',
-		},
-		components: {
-			securitySchemes: {
-				cookieAuth: {
-					type: 'apiKey',
-					in: 'cookie',
-					name: 'splitflow.sid',
-				},
-			},
-		},
-	},
-	transform: jsonSchemaTransform,
+const app = buildApp({
+	sessionSecret,
+	nodeEnv,
+	pool: db.pool,
 })
-
-app.register(fastifySwaggerUi, {
-	routePrefix: '/docs',
-})
-
-app.register(fastifyCookie)
-app.register(fastifySession, {
-	store: new PgSessionStore(db.pool),
-	cookieName: 'splitflow.sid',
-	secret: process.env.SESSION_SECRET ?? 'xxxxx',
-	saveUninitialized: false,
-	cookie: {
-		path: '/',
-		httpOnly: true,
-		secure: process.env.NODE_ENV === 'prod',
-		sameSite: 'lax',
-		maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
-	},
-})
-
-app.setErrorHandler(errorHandler)
-
-app.setNotFoundHandler((request, reply) => {
-	reply.status(404).send({
-		statusCode: 404,
-		error: 'Not Found',
-		message: `Route ${request.method} ${request.url} not found`,
-	})
-})
-
-app.register(authRoute)
-app.register(UsersRoute)
 
 try {
 	await db.testConnection()
 
-	app.listen({ port: 3000, host: '0.0.0.0' }, (address) => {
+	app.listen({ port, host }, (address) => {
 		app.log.error(`server listening on ${address}`)
 	})
 } catch (error) {
