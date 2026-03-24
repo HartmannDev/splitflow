@@ -59,7 +59,6 @@ CREATE TABLE users (
 	last_name text NOT NULL,
 	email text NOT NULL,
 	password_hash text NOT NULL,
-	password_salt text NOT NULL,
 	is_active boolean NOT NULL DEFAULT true,
 	email_verified_at timestamptz,
 	created_at timestamptz NOT NULL DEFAULT now(),
