@@ -4,9 +4,11 @@ import type { FastifyOpenApiSchema } from '../../types/swagger.ts'
 import { LoginSchema } from './model.ts'
 import {
 	BadRequestErrorResponseSchema,
+	ConflictErrorResponseSchema,
 	InternalServerErrorResponseSchema,
 	UnauthorizedErrorResponseSchema,
 } from '../../common/error-schemas.ts'
+import { CreateUserSchema } from '../users/model.ts'
 
 export const loginOptions: FastifyOpenApiSchema = {
 	description: 'Login to the application',
@@ -44,6 +46,20 @@ export const meOptions: FastifyOpenApiSchema = {
 			.object({ sessionUser: z.object({ userId: z.string(), email: z.string(), role: z.enum(['user', 'admin']) }) })
 			.describe('Current logged in user'),
 		401: UnauthorizedErrorResponseSchema.describe('Unauthorized: No valid session found'),
+		500: InternalServerErrorResponseSchema.describe('Internal Server Error: Unexpected error'),
+	},
+}
+
+export const signupOptions: FastifyOpenApiSchema = {
+	description: 'Signup for a new account',
+	tags: ['Auth'],
+	body: CreateUserSchema,
+	response: {
+		201: z.object({
+			message: z.string(),
+			userID: z.string(),
+		}),
+		409: ConflictErrorResponseSchema.describe('Conflict: Email already in use'),
 		500: InternalServerErrorResponseSchema.describe('Internal Server Error: Unexpected error'),
 	},
 }

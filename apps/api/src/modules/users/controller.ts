@@ -51,7 +51,7 @@ export const createUser = async (req: FastifyRequest, res: FastifyReply) => {
 					password_hash,
 					email_verified_at
 				) VALUES
-				($1, $2, $3, $4, $5, $6, $7, $8)
+				($1, $2, $3, $4, $5, $6, $7)
 			`,
 			[userID, 'user', name, lastname, normalizedEmail, passwordHash, null],
 		)

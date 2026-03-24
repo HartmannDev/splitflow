@@ -23,21 +23,6 @@ export const getUsersOptions: FastifyOpenApiSchema = {
 	},
 }
 
-export const createUserOptions: FastifyOpenApiSchema = {
-	description: 'Create a new user',
-	tags: ['Users'],
-	body: CreateUserSchema,
-	security: [{ cookieAuth: [] }],
-	response: {
-		201: z.object({
-			message: z.string(),
-			userID: z.string(),
-		}),
-		409: ConflictErrorResponseSchema.describe('Conflict: Email already in use'),
-		500: InternalServerErrorResponseSchema.describe('Internal Server Error: Unexpected error'),
-	},
-}
-
 export const deleteUserOptions: FastifyOpenApiSchema = {
 	description: 'Soft delete a user',
 	tags: ['Users'],
