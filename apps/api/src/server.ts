@@ -31,6 +31,15 @@ app.register(fastifySwagger, {
 			title: 'SplitFlow API Documentation',
 			version: '1.0.0',
 		},
+		components: {
+			securitySchemes: {
+				cookieAuth: {
+					type: 'apiKey',
+					in: 'cookie',
+					name: 'splitflow.sid',
+				},
+			},
+		},
 	},
 	transform: jsonSchemaTransform,
 })

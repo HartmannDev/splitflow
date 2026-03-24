@@ -27,6 +27,7 @@ export const loginOptions: FastifyOpenApiSchema = {
 export const logoutOptions: FastifyOpenApiSchema = {
 	description: 'Logout from the application',
 	tags: ['Auth'],
+	security: [{ cookieAuth: [] }],
 	response: {
 		200: z.object({ message: z.string() }).describe('Successful logout response'),
 		401: UnauthorizedErrorResponseSchema.describe('Unauthorized: No valid session found'),
@@ -37,6 +38,7 @@ export const logoutOptions: FastifyOpenApiSchema = {
 export const meOptions: FastifyOpenApiSchema = {
 	description: 'Get current logged in user',
 	tags: ['Auth'],
+	security: [{ cookieAuth: [] }],
 	response: {
 		200: z
 			.object({ sessionUser: z.object({ userId: z.string(), email: z.string(), role: z.enum(['user', 'admin']) }) })

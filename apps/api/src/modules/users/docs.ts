@@ -14,6 +14,7 @@ import type { FastifyOpenApiSchema } from '../../types/swagger.ts'
 export const getUsersOptions: FastifyOpenApiSchema = {
 	description: 'Get a list of users',
 	tags: ['Users'],
+	security: [{ cookieAuth: [] }],
 	response: {
 		200: UserListSchema.describe('Successful response with a list of users'),
 		401: UnauthorizedErrorResponseSchema.describe('Unauthorized: You must be logged in to access this resource'),
@@ -26,6 +27,7 @@ export const createUserOptions: FastifyOpenApiSchema = {
 	description: 'Create a new user',
 	tags: ['Users'],
 	body: CreateUserSchema,
+	security: [{ cookieAuth: [] }],
 	response: {
 		201: z.object({
 			message: z.string(),
@@ -40,6 +42,7 @@ export const deleteUserOptions: FastifyOpenApiSchema = {
 	description: 'Soft delete a user',
 	tags: ['Users'],
 	params: UserIDSchema,
+	security: [{ cookieAuth: [] }],
 	response: {
 		200: DeleteUserResponseSchema.describe('User deleted successfully'),
 		401: UnauthorizedErrorResponseSchema.describe('Unauthorized: You must be logged in to access this resource'),
