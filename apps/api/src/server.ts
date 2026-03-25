@@ -1,7 +1,7 @@
 import process from 'node:process'
 
-import { db } from './db/db.ts'
 import { buildApp } from './app.ts'
+import { db } from './db/db.ts'
 import type { NodeEnvTypes } from './types/app.d.ts'
 
 const port = process.env.PORT ? parseInt(process.env.PORT) : 3000
