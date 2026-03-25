@@ -63,7 +63,6 @@ The `users` table should include at least:
 - last_name
 - email
 - password_hash
-- password_salt
 - is_active
 - email_verified_at
 - created_at
@@ -73,8 +72,9 @@ The `users` table should include at least:
 ### Password security
 
 - `password_hash` is stored in the database
-- `password_salt` is stored in the database
+- bcrypt salt is embedded inside `password_hash`
 - the **pepper** is stored only in environment variables and never in the database
+- the application must not store a separate `password_salt` column
 
 ---
 
@@ -87,8 +87,57 @@ Admins are responsible for:
 - setup of standard app information
 - management of default categories
 - app-level aggregate visibility
+- account-management actions for users
 
-Admins must **not** see individual private user data.
+Admins may access user account-management data such as:
+
+- id
+- role
+- name
+- email
+- active status
+- email verification status
+- lifecycle timestamps
+
+Admins must **not** access a user’s private financial data just because they are admins.
+
+---
+
+## User Management Rules
+
+Users can update only their own profile information.
+
+For now, profile information means:
+
+- name
+- last_name
+- email
+
+Admins do not edit personal profile fields on behalf of users as part of normal flows.
+
+Admins can perform management activities across users, such as:
+
+- create users
+- list users for account management
+- view one user for account management
+- reset passwords
+- soft delete users
+
+Admins must not delete their own account through the normal admin delete endpoint.
+
+---
+
+## Session and Email Verification Rules
+
+In production, the API must not create or keep an authenticated session for users whose email is not verified.
+
+This rule applies to:
+
+- signup session creation
+- login session creation
+- any later request that loads the current session user
+
+In development and test environments, this restriction may be relaxed so implementation and testing can continue before the full email-verification cycle exists.
 
 ---
 
