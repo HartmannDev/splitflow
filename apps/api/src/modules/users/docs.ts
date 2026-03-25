@@ -1,17 +1,3 @@
-import z from 'zod'
-
-import {
-	CreateManagedUserSchema,
-	CreateUserResponseSchema,
-	DeleteUserResponseSchema,
-	GetUsersQuerySchema,
-	PublicUserSchema,
-	ResetUserPasswordResponseSchema,
-	ResetUserPasswordSchema,
-	UpdateOwnUserSchema,
-	UserIDSchema,
-	UserListSchema,
-} from './model.ts'
 import {
 	BadRequestErrorResponseSchema,
 	ConflictErrorResponseSchema,
@@ -20,8 +6,20 @@ import {
 	NotFoundErrorResponseSchema,
 	UnauthorizedErrorResponseSchema,
 } from '../../common/error-schemas.ts'
-
 import type { FastifyOpenApiSchema } from '../../types/swagger.ts'
+import {
+	CreateManagedUserSchema,
+	CreateUserResponseSchema,
+	DeleteUserResponseSchema,
+	GetUsersQuerySchema,
+	PublicUserSchema,
+	ResetUserPasswordResponseSchema,
+	ResetUserPasswordSchema,
+	UpdateManagedUserSchema,
+	UpdateOwnUserSchema,
+	UserIDSchema,
+	UserListSchema,
+} from './model.ts'
 
 export const getUsersOptions: FastifyOpenApiSchema = {
 	description: 'Get a list of users for account management',
@@ -75,6 +73,22 @@ export const updateOwnUserOptions: FastifyOpenApiSchema = {
 		400: BadRequestErrorResponseSchema.describe('Bad Request: Invalid input data'),
 		401: UnauthorizedErrorResponseSchema.describe('Unauthorized: You must be logged in to access this resource'),
 		409: ConflictErrorResponseSchema.describe('Conflict: Email already in use'),
+		500: InternalServerErrorResponseSchema.describe('Internal Server Error: Unexpected error'),
+	},
+}
+
+export const updateManagedUserOptions: FastifyOpenApiSchema = {
+	description: 'Update user management data',
+	tags: ['Users'],
+	params: UserIDSchema,
+	body: UpdateManagedUserSchema,
+	security: [{ cookieAuth: [] }],
+	response: {
+		200: PublicUserSchema.describe('User management data updated successfully'),
+		400: BadRequestErrorResponseSchema.describe('Bad Request: Invalid input data'),
+		401: UnauthorizedErrorResponseSchema.describe('Unauthorized: You must be logged in to access this resource'),
+		403: ForbiddenErrorResponseSchema.describe('Forbidden: You do not have permission to access this resource'),
+		404: NotFoundErrorResponseSchema.describe('Not Found: User does not exist'),
 		500: InternalServerErrorResponseSchema.describe('Internal Server Error: Unexpected error'),
 	},
 }

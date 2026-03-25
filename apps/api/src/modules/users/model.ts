@@ -46,6 +46,15 @@ export const UpdateOwnUserSchema = z
 		message: 'At least one field must be provided',
 	})
 
+export const UpdateManagedUserSchema = z
+	.object({
+		role: z.enum(['user', 'admin']).optional(),
+		isActive: z.boolean().optional(),
+	})
+	.refine((value) => Object.values(value).some((entry) => entry !== undefined), {
+		message: 'At least one field must be provided',
+	})
+
 export const ResetUserPasswordSchema = z.object({
 	password: PasswordSchema,
 })
@@ -88,4 +97,5 @@ export type CreateManagedUserInput = z.infer<typeof CreateManagedUserSchema>
 export type GetUsersQueryInput = z.infer<typeof GetUsersQuerySchema>
 export type UserID = z.infer<typeof UserIDSchema>
 export type UpdateOwnUserInput = z.infer<typeof UpdateOwnUserSchema>
+export type UpdateManagedUserInput = z.infer<typeof UpdateManagedUserSchema>
 export type ResetUserPasswordInput = z.infer<typeof ResetUserPasswordSchema>
