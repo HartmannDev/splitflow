@@ -1,10 +1,9 @@
 import type { FastifyReply, FastifyRequest } from 'fastify'
 import { randomUUID } from 'node:crypto'
-import bcrypt from 'bcrypt'
 
 import type { LoginInput } from './model.ts'
 
-import { verifyHash } from './hash-validator.ts'
+import { buildHashValidator } from './hash-validator.ts'
 import type { CreateUserInput } from '../users/model.ts'
 import { conflictError, isDatabaseError } from '../../common/errors.ts'
 import type { AppDependency } from '../../types/app.js'
@@ -20,6 +19,7 @@ type SignupRequest = FastifyRequest<{
 export const buildAuthController = (deps: AppDependency) => {
 	const db = deps.db
 	const passwordPepper = deps.config.passwordPepper
+	const hashValidator = buildHashValidator(passwordPepper)
 
 	const login = async (req: LoginRequest, res: FastifyReply) => {
 		const { email, password } = req.body as LoginInput
@@ -45,7 +45,7 @@ export const buildAuthController = (deps: AppDependency) => {
 
 		const user = payload.rows[0]
 
-		const isValidPassword = await verifyHash(password, user.password_hash)
+		const isValidPassword = await hashValidator.verifyHash(password, user.password_hash)
 		if (!isValidPassword) {
 			return res.status(401).send({ message: 'Invalid email or password' })
 		}
@@ -72,8 +72,7 @@ export const buildAuthController = (deps: AppDependency) => {
 	const signup = async (req: SignupRequest, res: FastifyReply) => {
 		const { name, lastname, email, password } = req.body as CreateUserInput
 		const userID = randomUUID()
-		const passwordSalt = await bcrypt.genSalt(10)
-		const passwordHash = await bcrypt.hash(password + passwordPepper, passwordSalt)
+		const { passwordHash } = await hashValidator.createHash(password)
 		const normalizedEmail = email.toLowerCase()
 
 		try {
