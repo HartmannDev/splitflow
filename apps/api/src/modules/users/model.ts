@@ -14,8 +14,6 @@ export const UserSchema = z.object({
 	name: z.string(),
 	lastname: z.string(),
 	email: z.email(),
-	passwordHash: z.string(),
-	passwordSalt: z.string(),
 	isActive: z.boolean(),
 	emailVerifiedAt: z.iso.datetime({ offset: true }).nullable(),
 	createdAt: z.iso.datetime({ offset: true }),
@@ -23,32 +21,71 @@ export const UserSchema = z.object({
 	deletedAt: z.iso.datetime({ offset: true }).nullable(),
 })
 
-export const PublicUserSchema = UserSchema.omit({
-	passwordHash: true,
-	passwordSalt: true,
+export const PublicUserSchema = UserSchema
+
+export const CreateUserSchema = z.object({
+	name: z.string().min(1),
+	lastname: z.string().min(1),
+	email: z.email(),
+	password: PasswordSchema,
 })
 
-export const CreateUserSchema = PublicUserSchema.omit({
-	id: true,
-	role: true,
-	isActive: true,
-	emailVerifiedAt: true,
-	createdAt: true,
-	updatedAt: true,
-	deletedAt: true,
-}).extend({
+export const CreateManagedUserSchema = CreateUserSchema.extend({
+	role: z.enum(['user', 'admin']).optional().default('user'),
+}).omit({
+	password: true,
+})
+
+export const UpdateOwnUserSchema = z
+	.object({
+		name: z.string().min(1).optional(),
+		lastname: z.string().min(1).optional(),
+		email: z.email().optional(),
+	})
+	.refine((value) => Object.values(value).some((entry) => entry !== undefined), {
+		message: 'At least one field must be provided',
+	})
+
+export const ResetUserPasswordSchema = z.object({
 	password: PasswordSchema,
+})
+
+export const GetUsersQuerySchema = z.object({
+	includeInactive: z.coerce.boolean().optional().default(false),
+})
+
+export const UserIDSchema = z.object({
+	id: z.uuid(),
+})
+
+export const CreateUserResponseSchema = z.object({
+	message: z.string(),
+	userID: z.uuid(),
 })
 
 export const DeleteUserResponseSchema = z.object({
 	message: z.string(),
 })
 
+export const ResetUserPasswordResponseSchema = z.object({
+	message: z.string(),
+})
+
+export const SessionUserSchema = PublicUserSchema.omit({
+	id: true,
+	createdAt: true,
+	updatedAt: true,
+	deletedAt: true,
+})
+
 export const UserListSchema = z.array(PublicUserSchema)
-export const UserIDSchema = UserSchema.pick({ id: true })
 
 export type Password = z.infer<typeof PasswordSchema>
 export type User = z.infer<typeof UserSchema>
 export type PublicUser = z.infer<typeof PublicUserSchema>
 export type CreateUserInput = z.infer<typeof CreateUserSchema>
+export type CreateManagedUserInput = z.infer<typeof CreateManagedUserSchema>
+export type GetUsersQueryInput = z.infer<typeof GetUsersQuerySchema>
 export type UserID = z.infer<typeof UserIDSchema>
+export type UpdateOwnUserInput = z.infer<typeof UpdateOwnUserSchema>
+export type ResetUserPasswordInput = z.infer<typeof ResetUserPasswordSchema>
