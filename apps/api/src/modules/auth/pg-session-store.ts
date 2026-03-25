@@ -42,7 +42,9 @@ export class PgSessionStore implements SessionStore {
 			try {
 				const result = await this.pool.query(
 					`
-					SELECT sess, expires_at
+					SELECT
+						sess,
+						expires_at as "expiresAt"
 					FROM sessions
 					WHERE sid = $1
 					LIMIT 1
@@ -57,7 +59,7 @@ export class PgSessionStore implements SessionStore {
 
 				const row = result.rows[0]
 
-				if (new Date(row.expires_at).getTime() <= Date.now()) {
+				if (new Date(row.expiresAt).getTime() <= Date.now()) {
 					await this.pool.query(`DELETE FROM sessions WHERE sid = $1`, [sessionId])
 					callback(null, null)
 					return

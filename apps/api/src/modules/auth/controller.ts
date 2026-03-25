@@ -1,8 +1,10 @@
 import { randomUUID } from 'node:crypto'
 import type { FastifyReply, FastifyRequest } from 'fastify'
-import { conflictError, isDatabaseError } from '../../common/errors.ts'
+
+import { conflictError, isDatabaseError, unauthorizedError } from '../../common/errors.ts'
+import { validatedResponse } from '../../common/response-validator.ts'
 import type { AppDependency } from '../../types/app.js'
-import type { CreateUserInput } from '../users/model.ts'
+import { type CreateUserInput, PublicUserSchema } from '../users/model.ts'
 import { buildHashValidator } from './hash-validator.ts'
 import type { LoginInput } from './model.ts'
 
@@ -16,8 +18,31 @@ type SignupRequest = FastifyRequest<{
 
 export const buildAuthController = (deps: AppDependency) => {
 	const db = deps.db
-	const passwordPepper = deps.config.passwordPepper
+	const { passwordPepper, nodeEnv } = deps.config
 	const hashValidator = buildHashValidator(passwordPepper)
+	const requiresVerifiedEmailSession = nodeEnv === 'prod'
+
+	const getPublicUserById = async (userId: string) => {
+		const payload = await db.query(
+			`SELECT
+				id,
+				role,
+				name,
+				last_name as "lastname",
+				email,
+				is_active as "isActive",
+				to_json(email_verified_at) as "emailVerifiedAt",
+				to_json(created_at) as "createdAt",
+				to_json(updated_at) as "updatedAt",
+				to_json(deleted_at) as "deletedAt"
+			FROM users
+			WHERE id = $1
+				AND deleted_at IS NULL`,
+			[userId],
+		)
+
+		return payload.rows[0]
+	}
 
 	const login = async (req: LoginRequest, res: FastifyReply) => {
 		const { email, password } = req.body as LoginInput
@@ -28,7 +53,12 @@ export const buildAuthController = (deps: AppDependency) => {
 
 		const payload = await db.query(
 			`
-			SELECT id, email, password_hash, role
+			SELECT
+				id,
+				email,
+				password_hash as "passwordHash",
+				role,
+				email_verified_at as "emailVerifiedAt"
 			FROM users
 			WHERE lower(email) = lower($1)
 				AND deleted_at IS NULL
@@ -43,9 +73,14 @@ export const buildAuthController = (deps: AppDependency) => {
 
 		const user = payload.rows[0]
 
-		const isValidPassword = await hashValidator.verifyHash(password, user.password_hash)
+		const isValidPassword = await hashValidator.verifyHash(password, user.passwordHash)
+
 		if (!isValidPassword) {
 			return res.status(401).send({ message: 'Invalid email or password' })
+		}
+
+		if (requiresVerifiedEmailSession && user.emailVerifiedAt === null) {
+			return res.status(401).send({ message: 'Email verification required before login' })
 		}
 
 		await req.session.regenerate()
@@ -64,7 +99,20 @@ export const buildAuthController = (deps: AppDependency) => {
 	}
 
 	const me = async (req: FastifyRequest, res: FastifyReply) => {
-		return res.status(200).send({ sessionUser: req.session.user })
+		const sessionUser = req.session.user!
+
+		const user = await getPublicUserById(sessionUser.userId)
+		if (!user) {
+			await req.session.destroy()
+			throw unauthorizedError('You must be logged in to access this route')
+		}
+
+		if (requiresVerifiedEmailSession && user.emailVerifiedAt === null) {
+			await req.session.destroy()
+			throw unauthorizedError('Email verification required before login')
+		}
+
+		return validatedResponse(res, 200, PublicUserSchema, user)
 	}
 
 	const signup = async (req: SignupRequest, res: FastifyReply) => {
@@ -90,11 +138,13 @@ export const buildAuthController = (deps: AppDependency) => {
 				[userID, name, lastname, normalizedEmail, passwordHash, null],
 			)
 
-			await req.session.regenerate()
-			req.session.user = {
-				userId: userID,
-				email: normalizedEmail,
-				role: 'user',
+			if (!requiresVerifiedEmailSession) {
+				await req.session.regenerate()
+				req.session.user = {
+					userId: userID,
+					email: normalizedEmail,
+					role: 'user',
+				}
 			}
 
 			return res.status(201).send({ message: 'User created successfully', userID })
