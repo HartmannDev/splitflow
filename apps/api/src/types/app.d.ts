@@ -5,6 +5,7 @@ export type AppDependency = {
 	config: {
 		passwordPepper: string
 		sessionSecret: string
+		nodeEnv: NodeEnvTypes
 	}
 }
 
