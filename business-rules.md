@@ -123,7 +123,16 @@ Admins can perform management activities across users, such as:
 - reset passwords
 - soft delete users
 
+When an admin creates a user, the API may generate a temporary password internally instead of requiring the admin to provide a real password.
+
+The normal follow-up management flow is:
+
+- create the account
+- trigger a password-reset flow later
+
 Admins must not delete their own account through the normal admin delete endpoint.
+
+The user-management list may optionally include inactive or soft-deleted users when explicitly requested for management purposes.
 
 ---
 
