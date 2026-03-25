@@ -120,8 +120,10 @@ Admins can perform management activities across users, such as:
 - create users
 - list users for account management
 - view one user for account management
+- update management-only user fields
 - reset passwords
 - soft delete users
+- reactivate users
 
 When an admin creates a user, the API may generate a temporary password internally instead of requiring the admin to provide a real password.
 
@@ -131,6 +133,18 @@ The normal follow-up management flow is:
 - trigger a password-reset flow later
 
 Admins must not delete their own account through the normal admin delete endpoint.
+
+Admins must not manage their own lifecycle through the admin management endpoint.
+
+Management-only user fields currently include:
+
+- role
+- is_active
+
+Reactivating a soft-deleted user restores the account lifecycle state by:
+
+- setting `is_active = true`
+- clearing `deleted_at`
 
 The user-management list may optionally include inactive or soft-deleted users when explicitly requested for management purposes.
 
