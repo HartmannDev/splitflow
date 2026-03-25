@@ -52,8 +52,8 @@ describe('users integration', () => {
 			name: 'Admin',
 			lastname: 'User',
 			email: 'admin@example.com',
-			password_hash: passwordHash,
-			email_verified_at: '2026-03-25T00:00:00.000Z',
+			passwordHash,
+			emailVerifiedAt: '2026-03-25T00:00:00.000Z',
 		})
 
 		const { cookie } = await login('admin@example.com', validPassword)
@@ -89,8 +89,8 @@ describe('users integration', () => {
 			name: 'Admin',
 			lastname: 'User',
 			email: 'admin@example.com',
-			password_hash: passwordHash,
-			email_verified_at: '2026-03-25T00:00:00.000Z',
+			passwordHash,
+			emailVerifiedAt: '2026-03-25T00:00:00.000Z',
 		})
 
 		await seedUser({
@@ -99,8 +99,8 @@ describe('users integration', () => {
 			name: 'Regular',
 			lastname: 'User',
 			email: 'user@example.com',
-			password_hash: passwordHash,
-			email_verified_at: null,
+			passwordHash,
+			emailVerifiedAt: null,
 		})
 
 		await seedUser({
@@ -109,17 +109,17 @@ describe('users integration', () => {
 			name: 'Deleted',
 			lastname: 'User',
 			email: 'deleted@example.com',
-			password_hash: passwordHash,
-			email_verified_at: null,
-			deleted_at: '2026-03-25T01:00:00.000Z',
-			is_active: false,
+			passwordHash,
+			emailVerifiedAt: null,
+			deletedAt: '2026-03-25T01:00:00.000Z',
+			isActive: false,
 		})
 
 		const { cookie } = await login('admin@example.com', validPassword)
 
 		const response = await app.inject({
 			method: 'GET',
-			url: '/users?includeInactive=true',
+			url: '/users',
 			headers: {
 				cookie,
 			},
@@ -127,6 +127,33 @@ describe('users integration', () => {
 
 		expect(response.statusCode).toBe(200)
 		expect(response.json()).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					id: adminId,
+					email: 'admin@example.com',
+					role: 'admin',
+					isActive: true,
+				}),
+				expect.objectContaining({
+					id: userId,
+					email: 'user@example.com',
+					role: 'user',
+					isActive: true,
+				}),
+			]),
+		)
+		expect(response.json()).toHaveLength(2)
+
+		const inclusiveResponse = await app.inject({
+			method: 'GET',
+			url: '/users?includeInactive=true',
+			headers: {
+				cookie,
+			},
+		})
+
+		expect(inclusiveResponse.statusCode).toBe(200)
+		expect(inclusiveResponse.json()).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({
 					id: adminId,
@@ -150,6 +177,51 @@ describe('users integration', () => {
 		)
 	})
 
+	it('returns one user for admin management', async () => {
+		const { createHash } = buildHashValidator(passwordPepper)
+		const { passwordHash } = await createHash(validPassword)
+
+		await seedUser({
+			id: adminId,
+			role: 'admin',
+			name: 'Admin',
+			lastname: 'User',
+			email: 'admin@example.com',
+			passwordHash,
+			emailVerifiedAt: '2026-03-25T00:00:00.000Z',
+		})
+
+		await seedUser({
+			id: userId,
+			role: 'user',
+			name: 'Regular',
+			lastname: 'User',
+			email: 'user@example.com',
+			passwordHash,
+			emailVerifiedAt: null,
+		})
+
+		const { cookie } = await login('admin@example.com', validPassword)
+
+		const response = await app.inject({
+			method: 'GET',
+			url: `/users/${userId}`,
+			headers: {
+				cookie,
+			},
+		})
+
+		expect(response.statusCode).toBe(200)
+		expect(response.json()).toEqual(
+			expect.objectContaining({
+				id: userId,
+				email: 'user@example.com',
+				role: 'user',
+				isActive: true,
+			}),
+		)
+	})
+
 	it('allows users to update only their own profile via /users/me', async () => {
 		const { createHash } = buildHashValidator(passwordPepper)
 		const { passwordHash } = await createHash(validPassword)
@@ -160,8 +232,8 @@ describe('users integration', () => {
 			name: 'Regular',
 			lastname: 'User',
 			email: 'user@example.com',
-			password_hash: passwordHash,
-			email_verified_at: '2026-03-25T00:00:00.000Z',
+			passwordHash,
+			emailVerifiedAt: '2026-03-25T00:00:00.000Z',
 		})
 
 		const { cookie } = await login('user@example.com', validPassword)
@@ -215,6 +287,141 @@ describe('users integration', () => {
 		})
 	})
 
+	it('rejects duplicate email updates on /users/me', async () => {
+		const { createHash } = buildHashValidator(passwordPepper)
+		const { passwordHash } = await createHash(validPassword)
+
+		await seedUser({
+			id: userId,
+			role: 'user',
+			name: 'Regular',
+			lastname: 'User',
+			email: 'user@example.com',
+			passwordHash,
+			emailVerifiedAt: '2026-03-25T00:00:00.000Z',
+		})
+
+		await seedUser({
+			id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+			role: 'user',
+			name: 'Other',
+			lastname: 'User',
+			email: 'other@example.com',
+			passwordHash,
+			emailVerifiedAt: null,
+		})
+
+		const { cookie } = await login('user@example.com', validPassword)
+
+		const response = await app.inject({
+			method: 'PATCH',
+			url: '/users/me',
+			headers: {
+				cookie,
+			},
+			payload: {
+				email: 'other@example.com',
+			},
+		})
+
+		expect(response.statusCode).toBe(409)
+		expect(response.json()).toEqual({
+			statusCode: 409,
+			error: 'ConflictError',
+			message: 'Email already in use',
+		})
+	})
+
+	it('allows admins to update role and reactivate deleted users', async () => {
+		const { createHash } = buildHashValidator(passwordPepper)
+		const { passwordHash } = await createHash(validPassword)
+
+		await seedUser({
+			id: adminId,
+			role: 'admin',
+			name: 'Admin',
+			lastname: 'User',
+			email: 'admin@example.com',
+			passwordHash,
+			emailVerifiedAt: '2026-03-25T00:00:00.000Z',
+		})
+
+		await seedUser({
+			id: userId,
+			role: 'user',
+			name: 'Regular',
+			lastname: 'User',
+			email: 'user@example.com',
+			passwordHash,
+			emailVerifiedAt: null,
+			deletedAt: '2026-03-25T01:00:00.000Z',
+			isActive: false,
+		})
+
+		const { cookie } = await login('admin@example.com', validPassword)
+
+		const response = await app.inject({
+			method: 'PATCH',
+			url: `/users/${userId}`,
+			headers: {
+				cookie,
+			},
+			payload: {
+				role: 'admin',
+				isActive: true,
+			},
+		})
+
+		expect(response.statusCode).toBe(200)
+		expect(response.json()).toEqual({
+			id: userId,
+			role: 'admin',
+			name: 'Regular',
+			lastname: 'User',
+			email: 'user@example.com',
+			isActive: true,
+			emailVerifiedAt: null,
+			createdAt: expect.any(String),
+			updatedAt: expect.any(String),
+			deletedAt: null,
+		})
+	})
+
+	it('prevents admins from managing their own lifecycle', async () => {
+		const { createHash } = buildHashValidator(passwordPepper)
+		const { passwordHash } = await createHash(validPassword)
+
+		await seedUser({
+			id: adminId,
+			role: 'admin',
+			name: 'Admin',
+			lastname: 'User',
+			email: 'admin@example.com',
+			passwordHash,
+			emailVerifiedAt: '2026-03-25T00:00:00.000Z',
+		})
+
+		const { cookie } = await login('admin@example.com', validPassword)
+
+		const response = await app.inject({
+			method: 'PATCH',
+			url: `/users/${adminId}`,
+			headers: {
+				cookie,
+			},
+			payload: {
+				isActive: false,
+			},
+		})
+
+		expect(response.statusCode).toBe(403)
+		expect(response.json()).toEqual({
+			statusCode: 403,
+			error: 'Forbidden',
+			message: 'Admins cannot manage their own account lifecycle',
+		})
+	})
+
 	it('allows admins to reset a user password', async () => {
 		const { createHash } = buildHashValidator(passwordPepper)
 		const { passwordHash } = await createHash(validPassword)
@@ -225,8 +432,8 @@ describe('users integration', () => {
 			name: 'Admin',
 			lastname: 'User',
 			email: 'admin@example.com',
-			password_hash: passwordHash,
-			email_verified_at: '2026-03-25T00:00:00.000Z',
+			passwordHash,
+			emailVerifiedAt: '2026-03-25T00:00:00.000Z',
 		})
 
 		await seedUser({
@@ -235,8 +442,8 @@ describe('users integration', () => {
 			name: 'Regular',
 			lastname: 'User',
 			email: 'user@example.com',
-			password_hash: passwordHash,
-			email_verified_at: null,
+			passwordHash,
+			emailVerifiedAt: null,
 		})
 
 		const { cookie } = await login('admin@example.com', validPassword)
@@ -279,8 +486,8 @@ describe('users integration', () => {
 			name: 'Admin',
 			lastname: 'User',
 			email: 'admin@example.com',
-			password_hash: passwordHash,
-			email_verified_at: '2026-03-25T00:00:00.000Z',
+			passwordHash,
+			emailVerifiedAt: '2026-03-25T00:00:00.000Z',
 		})
 
 		await seedUser({
@@ -289,8 +496,8 @@ describe('users integration', () => {
 			name: 'Regular',
 			lastname: 'User',
 			email: 'user@example.com',
-			password_hash: passwordHash,
-			email_verified_at: null,
+			passwordHash,
+			emailVerifiedAt: null,
 		})
 
 		const { cookie } = await login('admin@example.com', validPassword)
@@ -332,5 +539,20 @@ describe('users integration', () => {
 		})
 
 		expect(getResponse.statusCode).toBe(404)
+
+		const repeatedDeleteResponse = await app.inject({
+			method: 'DELETE',
+			url: `/users/${userId}`,
+			headers: {
+				cookie,
+			},
+		})
+
+		expect(repeatedDeleteResponse.statusCode).toBe(404)
+		expect(repeatedDeleteResponse.json()).toEqual({
+			statusCode: 404,
+			error: 'Not Found',
+			message: 'User not found',
+		})
 	})
 })

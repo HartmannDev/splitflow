@@ -2,16 +2,16 @@ import type { User } from '../../src/modules/users/model.ts'
 
 type SessionRow = {
 	sess: string
-	expires_at: Date
+	expiresAt: Date
 }
 
 type UserRow = Pick<User, 'id' | 'role' | 'name' | 'lastname' | 'email'> & {
-	password_hash: string
-	email_verified_at?: string | null
-	created_at?: string
-	updated_at?: string
-	deleted_at?: string | null
-	is_active?: boolean
+	passwordHash: string
+	emailVerifiedAt?: string | null
+	createdAt?: string
+	updatedAt?: string
+	deletedAt?: string | null
+	isActive?: boolean
 }
 
 class FakePool {
@@ -23,7 +23,7 @@ class FakePool {
 
 			this.sessions.set(sessionId, {
 				sess: session,
-				expires_at: expiresAt,
+				expiresAt,
 			})
 
 			return { rowCount: 1, rows: [] }
@@ -42,7 +42,7 @@ class FakePool {
 				rows: [
 					{
 						sess: JSON.parse(session.sess),
-						expiresAt: session.expires_at,
+						expiresAt: session.expiresAt,
 					},
 				],
 			}
@@ -81,11 +81,11 @@ export class FakeDatabase {
 			name: user.name,
 			lastname: user.lastname,
 			email: user.email,
-			isActive: user.is_active,
-			emailVerifiedAt: user.email_verified_at,
-			createdAt: user.created_at,
-			updatedAt: user.updated_at,
-			deletedAt: user.deleted_at,
+			isActive: user.isActive,
+			emailVerifiedAt: user.emailVerifiedAt,
+			createdAt: user.createdAt,
+			updatedAt: user.updatedAt,
+			deletedAt: user.deletedAt,
 		}
 	}
 
@@ -95,22 +95,21 @@ export class FakeDatabase {
 		return {
 			...user,
 			email: user.email.toLowerCase(),
-			created_at: user.created_at ?? timestamp,
-			updated_at: user.updated_at ?? timestamp,
-			email_verified_at: user.email_verified_at ?? null,
-			deleted_at: user.deleted_at ?? null,
-			is_active: user.is_active ?? true,
+			createdAt: user.createdAt ?? timestamp,
+			updatedAt: user.updatedAt ?? timestamp,
+			emailVerifiedAt: user.emailVerifiedAt ?? null,
+			deletedAt: user.deletedAt ?? null,
+			isActive: user.isActive ?? true,
 		}
 	}
 
-	async query(sql: string, params?: any[]) {
+	async query(sql: string, params?: unknown[]) {
 		const queryParams = params ?? []
 
 		if (sql.includes('password_hash as "passwordHash"') && sql.includes('email_verified_at as "emailVerifiedAt"')) {
 			const [email] = queryParams as [string]
 			const user = [...this.users.values()].find(
-				(candidate) =>
-					candidate.email.toLowerCase() === email.toLowerCase() && candidate.deleted_at === null && candidate.is_active,
+				(candidate) => candidate.email.toLowerCase() === email.toLowerCase() && candidate.deletedAt === null && candidate.isActive,
 			)
 
 			return {
@@ -120,9 +119,9 @@ export class FakeDatabase {
 							{
 								id: user.id,
 								email: user.email,
-								passwordHash: user.password_hash,
+								passwordHash: user.passwordHash,
 								role: user.role,
-								emailVerifiedAt: user.email_verified_at,
+								emailVerifiedAt: user.emailVerifiedAt,
 							},
 						]
 					: [],
@@ -156,12 +155,12 @@ export class FakeDatabase {
 				name,
 				lastname,
 				email: email.toLowerCase(),
-				password_hash: passwordHash,
-				email_verified_at: verifiedAt,
-				created_at: timestamp,
-				updated_at: timestamp,
-				deleted_at: null,
-				is_active: true,
+				passwordHash,
+				emailVerifiedAt: verifiedAt,
+				createdAt: timestamp,
+				updatedAt: timestamp,
+				deletedAt: null,
+				isActive: true,
 			})
 
 			return { rowCount: 1, rows: [] }
@@ -171,7 +170,21 @@ export class FakeDatabase {
 			const [id] = queryParams as [string]
 			const user = this.users.get(id)
 
-			if (!user || user.deleted_at !== null) {
+			if (!user || user.deletedAt !== null) {
+				return { rowCount: 0, rows: [] }
+			}
+
+			return {
+				rowCount: 1,
+				rows: [this.buildUserResponse(user)],
+			}
+		}
+
+		if (sql.includes('FROM users') && sql.includes('WHERE id = $1') && !sql.includes('deleted_at IS NULL')) {
+			const [id] = queryParams as [string]
+			const user = this.users.get(id)
+
+			if (!user) {
 				return { rowCount: 0, rows: [] }
 			}
 
@@ -183,8 +196,8 @@ export class FakeDatabase {
 
 		if (sql.includes('FROM users') && sql.includes('WHERE deleted_at IS NULL') && sql.includes('ORDER BY created_at DESC')) {
 			const rows = [...this.users.values()]
-				.filter((user) => user.deleted_at === null)
-				.sort((left, right) => right.created_at.localeCompare(left.created_at))
+				.filter((user) => user.deletedAt === null)
+				.sort((left, right) => right.createdAt!.localeCompare(left.createdAt!))
 				.map((user) => this.buildUserResponse(user))
 
 			return {
@@ -195,7 +208,7 @@ export class FakeDatabase {
 
 		if (sql.includes('FROM users') && sql.includes('ORDER BY created_at DESC') && !sql.includes('WHERE deleted_at IS NULL')) {
 			const rows = [...this.users.values()]
-				.sort((left, right) => right.created_at.localeCompare(left.created_at))
+				.sort((left, right) => right.createdAt!.localeCompare(left.createdAt!))
 				.map((user) => this.buildUserResponse(user))
 
 			return {
@@ -214,14 +227,14 @@ export class FakeDatabase {
 			]
 			const user = this.users.get(id)
 
-			if (!user || user.deleted_at !== null) {
+			if (!user || user.deletedAt !== null) {
 				return { rowCount: 0, rows: [] }
 			}
 
 			const emailExists = [...this.users.values()].some(
 				(candidate) =>
 					candidate.id !== id &&
-					candidate.deleted_at === null &&
+					candidate.deletedAt === null &&
 					candidate.email.toLowerCase() === email.toLowerCase(),
 			)
 
@@ -232,8 +245,8 @@ export class FakeDatabase {
 			user.name = name
 			user.lastname = lastname
 			user.email = email.toLowerCase()
-			user.email_verified_at = emailVerifiedAt
-			user.updated_at = new Date().toISOString()
+			user.emailVerifiedAt = emailVerifiedAt
+			user.updatedAt = new Date().toISOString()
 
 			return {
 				rowCount: 1,
@@ -245,28 +258,47 @@ export class FakeDatabase {
 			const [id, passwordHash] = queryParams as [string, string]
 			const user = this.users.get(id)
 
-			if (!user || user.deleted_at !== null) {
+			if (!user || user.deletedAt !== null) {
 				return { rowCount: 0, rows: [] }
 			}
 
-			user.password_hash = passwordHash
-			user.updated_at = new Date().toISOString()
+			user.passwordHash = passwordHash
+			user.updatedAt = new Date().toISOString()
 
 			return { rowCount: 1, rows: [] }
+		}
+
+		if (sql.includes('UPDATE users') && sql.includes('SET role = $2') && sql.includes('is_active = $3')) {
+			const [id, role, isActive] = queryParams as [string, UserRow['role'], boolean]
+			const user = this.users.get(id)
+
+			if (!user) {
+				return { rowCount: 0, rows: [] }
+			}
+
+			user.role = role
+			user.isActive = isActive
+			user.deletedAt = isActive ? null : (user.deletedAt ?? new Date().toISOString())
+			user.updatedAt = new Date().toISOString()
+
+			return {
+				rowCount: 1,
+				rows: [this.buildUserResponse(user)],
+			}
 		}
 
 		if (sql.includes('UPDATE users') && sql.includes('SET deleted_at = NOW()')) {
 			const [id] = queryParams as [string]
 			const user = this.users.get(id)
 
-			if (!user || user.deleted_at !== null) {
+			if (!user || user.deletedAt !== null) {
 				return { rowCount: 0, rows: [] }
 			}
 
 			const timestamp = new Date().toISOString()
-			user.deleted_at = timestamp
-			user.updated_at = timestamp
-			user.is_active = false
+			user.deletedAt = timestamp
+			user.updatedAt = timestamp
+			user.isActive = false
 
 			return { rowCount: 1, rows: [] }
 		}

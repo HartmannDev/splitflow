@@ -103,10 +103,10 @@ describe('auth integration', () => {
 			name: 'Mateus',
 			lastname: 'Silva',
 			email: 'mateus@example.com',
-			password_hash: passwordHash,
-			email_verified_at: null,
-			deleted_at: null,
-			is_active: true,
+			passwordHash,
+			emailVerifiedAt: null,
+			deletedAt: null,
+			isActive: true,
 		}
 
 		fakeDatabase.seedUser(user)
@@ -215,10 +215,10 @@ describe('auth integration', () => {
 			name: 'Mateus',
 			lastname: 'Silva',
 			email: 'mateus@example.com',
-			password_hash: passwordHash,
-			email_verified_at: null,
-			deleted_at: null,
-			is_active: true,
+			passwordHash,
+			emailVerifiedAt: null,
+			deletedAt: null,
+			isActive: true,
 		})
 
 		try {
