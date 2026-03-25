@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "rootDir": "./src",
+    "rootDir": ".",
     "module": "nodenext",
     "target": "es2024",
     "types": [],
