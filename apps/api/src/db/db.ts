@@ -56,3 +56,5 @@ export const db = {
 	testConnection,
 	pool,
 }
+
+export type Database = typeof db

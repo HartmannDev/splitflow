@@ -15,14 +15,7 @@ import { UsersRoute } from './modules/users/route.ts'
 import { errorHandler } from './common/error-handler.ts'
 import { authRoute } from './modules/auth/route.ts'
 import { PgSessionStore } from './modules/auth/pg-session-store.ts'
-import type { Pool } from 'pg'
-
-type BuildAppOptions = {
-	sessionSecret: string
-	nodeEnv: 'dev' | 'prod' | 'test'
-	pool: Pool
-	logger?: boolean | object
-}
+import type { AppDependency, BuildAppOptions } from './types/app.js'
 
 export const buildApp = (options: BuildAppOptions): FastifyInstance => {
 	const app = fastify({
@@ -59,7 +52,7 @@ export const buildApp = (options: BuildAppOptions): FastifyInstance => {
 
 	app.register(fastifyCookie)
 	app.register(fastifySession, {
-		store: new PgSessionStore(options.pool),
+		store: new PgSessionStore(options.database.pool),
 		cookieName: 'splitflow.sid',
 		secret: options.sessionSecret,
 		saveUninitialized: false,
@@ -82,8 +75,16 @@ export const buildApp = (options: BuildAppOptions): FastifyInstance => {
 		})
 	})
 
-	app.register(authRoute)
-	app.register(UsersRoute)
+	const appDeps: AppDependency = {
+		db: options.database,
+		config: {
+			passwordPepper: options.passwordPepper,
+			sessionSecret: options.sessionSecret,
+		},
+	}
+
+	app.register(authRoute, appDeps)
+	app.register(UsersRoute, appDeps)
 
 	return app
 }

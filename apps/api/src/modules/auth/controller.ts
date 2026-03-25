@@ -4,12 +4,10 @@ import bcrypt from 'bcrypt'
 
 import type { LoginInput } from './model.ts'
 
-import { db } from '../../db/db.ts'
 import { verifyHash } from './hash-validator.ts'
 import type { CreateUserInput } from '../users/model.ts'
 import { conflictError, isDatabaseError } from '../../common/errors.ts'
-
-const passwordPepper = process.env.PASSWORD_PEPPER
+import type { AppDependency } from '../../types/app.js'
 
 type LoginRequest = FastifyRequest<{
 	Body: LoginInput
@@ -19,91 +17,103 @@ type SignupRequest = FastifyRequest<{
 	Body: CreateUserInput
 }>
 
-export const login = async (req: LoginRequest, res: FastifyReply) => {
-	const { email, password } = req.body as LoginInput
+export const buildAuthController = (deps: AppDependency) => {
+	const db = deps.db
+	const passwordPepper = deps.config.passwordPepper
 
-	if (req.session.user) {
-		await req.session.destroy()
-	}
+	const login = async (req: LoginRequest, res: FastifyReply) => {
+		const { email, password } = req.body as LoginInput
 
-	const payload = await db.query(
-		`
-		SELECT id, email, password_hash, role
-		FROM users
-		WHERE lower(email) = lower($1)
-			AND deleted_at IS NULL
-			AND is_active = true
-	`,
-		[email],
-	)
+		if (req.session.user) {
+			await req.session.destroy()
+		}
 
-	if (payload.rowCount === 0) {
-		return res.status(401).send({ message: 'Invalid email or password' })
-	}
-
-	const user = payload.rows[0]
-
-	const isValidPassword = await verifyHash(password, user.password_hash)
-	if (!isValidPassword) {
-		return res.status(401).send({ message: 'Invalid email or password' })
-	}
-
-	await req.session.regenerate()
-	req.session.user = {
-		userId: user.id,
-		email: user.email,
-		role: user.role,
-	}
-
-	return res.send({ message: 'Login successful' })
-}
-
-export const logout = async (req: FastifyRequest, res: FastifyReply) => {
-	await req.session.destroy()
-	return res.status(200).send({ message: 'Logged out' })
-}
-
-export const me = async (req: FastifyRequest, res: FastifyReply) => {
-	return res.status(200).send({ sessionUser: req.session.user })
-}
-
-export const signup = async (req: SignupRequest, res: FastifyReply) => {
-	const { name, lastname, email, password } = req.body as CreateUserInput
-	const userID = randomUUID()
-	const passwordSalt = await bcrypt.genSalt(10)
-	const passwordHash = await bcrypt.hash(password + passwordPepper, passwordSalt)
-	const normalizedEmail = email.toLowerCase()
-
-	try {
-		await db.query(
+		const payload = await db.query(
 			`
-					INSERT INTO users (
-						id,
-						role,
-						name,
-						last_name,
-						email,
-						password_hash,
-						email_verified_at
-					) VALUES
-					($1,'user', $2, $3, $4, $5, $6)
-				`,
-			[userID, name, lastname, normalizedEmail, passwordHash, null],
+			SELECT id, email, password_hash, role
+			FROM users
+			WHERE lower(email) = lower($1)
+				AND deleted_at IS NULL
+				AND is_active = true
+		`,
+			[email],
 		)
+
+		if (payload.rowCount === 0) {
+			return res.status(401).send({ message: 'Invalid email or password' })
+		}
+
+		const user = payload.rows[0]
+
+		const isValidPassword = await verifyHash(password, user.password_hash)
+		if (!isValidPassword) {
+			return res.status(401).send({ message: 'Invalid email or password' })
+		}
 
 		await req.session.regenerate()
 		req.session.user = {
-			userId: userID,
-			email: normalizedEmail,
-			role: 'user',
+			userId: user.id,
+			email: user.email,
+			role: user.role,
 		}
 
-		return res.status(201).send({ message: 'User created successfully', id: userID })
-	} catch (error) {
-		if (isDatabaseError(error) && error.code === '23505') {
-			throw conflictError('Email already in use')
-		}
+		return res.send({ message: 'Login successful' })
+	}
 
-		throw error
+	const logout = async (req: FastifyRequest, res: FastifyReply) => {
+		await req.session.destroy()
+		return res.status(200).send({ message: 'Logged out' })
+	}
+
+	const me = async (req: FastifyRequest, res: FastifyReply) => {
+		return res.status(200).send({ sessionUser: req.session.user })
+	}
+
+	const signup = async (req: SignupRequest, res: FastifyReply) => {
+		const { name, lastname, email, password } = req.body as CreateUserInput
+		const userID = randomUUID()
+		const passwordSalt = await bcrypt.genSalt(10)
+		const passwordHash = await bcrypt.hash(password + passwordPepper, passwordSalt)
+		const normalizedEmail = email.toLowerCase()
+
+		try {
+			await db.query(
+				`
+						INSERT INTO users (
+							id,
+							role,
+							name,
+							last_name,
+							email,
+							password_hash,
+							email_verified_at
+						) VALUES
+						($1,'user', $2, $3, $4, $5, $6)
+					`,
+				[userID, name, lastname, normalizedEmail, passwordHash, null],
+			)
+
+			await req.session.regenerate()
+			req.session.user = {
+				userId: userID,
+				email: normalizedEmail,
+				role: 'user',
+			}
+
+			return res.status(201).send({ message: 'User created successfully', id: userID })
+		} catch (error) {
+			if (isDatabaseError(error) && error.code === '23505') {
+				throw conflictError('Email already in use')
+			}
+
+			throw error
+		}
+	}
+
+	return {
+		login,
+		logout,
+		me,
+		signup,
 	}
 }
