@@ -80,6 +80,7 @@ export const buildApp = (options: BuildAppOptions): FastifyInstance => {
 		config: {
 			passwordPepper: options.passwordPepper,
 			sessionSecret: options.sessionSecret,
+			nodeEnv: options.nodeEnv,
 		},
 	}
 
