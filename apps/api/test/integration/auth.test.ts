@@ -49,11 +49,16 @@ describe('auth integration', () => {
 
 		expect(meResponse.statusCode).toBe(200)
 		expect(meResponse.json()).toEqual({
-			sessionUser: {
-				userId: signupResponse.json().userID,
-				email: 'mateus@example.com',
-				role: 'user',
-			},
+			id: signupResponse.json().userID,
+			role: 'user',
+			name: 'Mateus',
+			lastname: 'Silva',
+			email: 'mateus@example.com',
+			isActive: true,
+			emailVerifiedAt: null,
+			createdAt: expect.any(String),
+			updatedAt: expect.any(String),
+			deletedAt: null,
 		})
 	})
 
@@ -93,7 +98,7 @@ describe('auth integration', () => {
 		const { passwordHash } = await createHash(validPassword)
 
 		const user: UserRow = {
-			id: 'user-1',
+			id: '11111111-1111-4111-8111-111111111111',
 			role: 'user',
 			name: 'Mateus',
 			lastname: 'Silva',
@@ -132,11 +137,16 @@ describe('auth integration', () => {
 
 		expect(meResponse.statusCode).toBe(200)
 		expect(meResponse.json()).toEqual({
-			sessionUser: {
-				userId: 'user-1',
-				email: 'mateus@example.com',
-				role: 'user',
-			},
+			id: '11111111-1111-4111-8111-111111111111',
+			role: 'user',
+			name: 'Mateus',
+			lastname: 'Silva',
+			email: 'mateus@example.com',
+			isActive: true,
+			emailVerifiedAt: null,
+			createdAt: expect.any(String),
+			updatedAt: expect.any(String),
+			deletedAt: null,
 		})
 	})
 
@@ -170,5 +180,65 @@ describe('auth integration', () => {
 			error: 'Unauthorized',
 			message: 'You must be logged in to access this route',
 		})
+	})
+
+	it('does not create a session for unverified signups in prod', async () => {
+		const { app: prodApp } = buildTestApp({ passwordPepper, nodeEnv: 'prod' })
+
+		try {
+			const signupResponse = await prodApp.inject({
+				method: 'POST',
+				url: '/signup',
+				payload: {
+					name: 'Mateus',
+					lastname: 'Silva',
+					email: 'mateus@example.com',
+					password: validPassword,
+				},
+			})
+
+			expect(signupResponse.statusCode).toBe(201)
+			expect(signupResponse.headers['set-cookie']).toBeUndefined()
+		} finally {
+			await prodApp.close()
+		}
+	})
+
+	it('rejects login for unverified users in prod', async () => {
+		const { app: prodApp, fakeDatabase: prodDatabase } = buildTestApp({ passwordPepper, nodeEnv: 'prod' })
+		const { createHash } = buildHashValidator(passwordPepper)
+		const { passwordHash } = await createHash(validPassword)
+
+		prodDatabase.seedUser({
+			id: '22222222-2222-4222-8222-222222222222',
+			role: 'user',
+			name: 'Mateus',
+			lastname: 'Silva',
+			email: 'mateus@example.com',
+			password_hash: passwordHash,
+			email_verified_at: null,
+			deleted_at: null,
+			is_active: true,
+		})
+
+		try {
+			const response = await prodApp.inject({
+				method: 'POST',
+				url: '/login',
+				payload: {
+					email: 'mateus@example.com',
+					password: validPassword,
+				},
+			})
+
+			expect(response.statusCode).toBe(401)
+			expect(response.json()).toEqual({
+				statusCode: 401,
+				error: 'Unauthorized',
+				message: 'Email verification required before login',
+			})
+		} finally {
+			await prodApp.close()
+		}
 	})
 })
