@@ -1,12 +1,10 @@
-import type { FastifyReply, FastifyRequest } from 'fastify'
 import { randomUUID } from 'node:crypto'
-
-import type { LoginInput } from './model.ts'
-
-import { buildHashValidator } from './hash-validator.ts'
-import type { CreateUserInput } from '../users/model.ts'
+import type { FastifyReply, FastifyRequest } from 'fastify'
 import { conflictError, isDatabaseError } from '../../common/errors.ts'
 import type { AppDependency } from '../../types/app.js'
+import type { CreateUserInput } from '../users/model.ts'
+import { buildHashValidator } from './hash-validator.ts'
+import type { LoginInput } from './model.ts'
 
 type LoginRequest = FastifyRequest<{
 	Body: LoginInput
@@ -99,7 +97,7 @@ export const buildAuthController = (deps: AppDependency) => {
 				role: 'user',
 			}
 
-			return res.status(201).send({ message: 'User created successfully', id: userID })
+			return res.status(201).send({ message: 'User created successfully', userID })
 		} catch (error) {
 			if (isDatabaseError(error) && error.code === '23505') {
 				throw conflictError('Email already in use')
