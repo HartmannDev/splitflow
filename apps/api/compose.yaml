@@ -9,6 +9,8 @@ services:
       - .:/app
       - /app/node_modules
     environment:
+      PORT: 3000
+      HOST: 0.0.0.0
       DB_HOST: db
       DB_PORT: 5432
       DB_USER: postgres
@@ -16,7 +18,7 @@ services:
       DATABASE: splitflow      
       PASSWORD_PEPPER: 5aa77c91ee8e7dbdf2c4d3140b1921df
       NODE_ENV: dev
-      SESSION_SECRET: VWqJxi@HSk3*Yi5U*z319XkSdCFmrul6T@$jDRgO
+      SESSION_SECRET: 'VWqJxi@HSk3*Yi5U*z319XkSdCFmrul6T@$$jDRgO'
     depends_on:
       db:
         condition: service_healthy
