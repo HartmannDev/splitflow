@@ -85,6 +85,7 @@ CREATE TABLE currencies (
 	is_active boolean NOT NULL DEFAULT true,
 	created_at timestamptz NOT NULL DEFAULT now(),
 	updated_at timestamptz NOT NULL DEFAULT now(),
+	deleted_at timestamptz NOT NULL DEFAULT now(),
 	CONSTRAINT currencies_code_uppercase CHECK (code = upper(code)),
 	CONSTRAINT currencies_decimal_places_valid CHECK (decimal_places BETWEEN 0 AND 6)
 );

@@ -39,6 +39,9 @@ type CurrencyRow = {
 	symbol: string
 	decimalPlaces: number
 	isActive?: boolean
+	createdAt?: string
+	updatedAt?: string
+	deletedAt?: string | null
 }
 
 type AccountRow = {
@@ -210,10 +213,28 @@ export class FakeDatabase {
 	}
 
 	private normalizeSeedCurrency(currency: CurrencyRow): CurrencyRow {
+		const timestamp = new Date().toISOString()
+
 		return {
 			...currency,
 			code: currency.code.toUpperCase(),
 			isActive: currency.isActive ?? true,
+			createdAt: currency.createdAt ?? timestamp,
+			updatedAt: currency.updatedAt ?? timestamp,
+			deletedAt: currency.deletedAt ?? null,
+		}
+	}
+
+	private buildCurrencyResponse(currency: CurrencyRow) {
+		return {
+			code: currency.code,
+			name: currency.name,
+			symbol: currency.symbol,
+			decimalPlaces: currency.decimalPlaces,
+			isActive: currency.isActive,
+			createdAt: currency.createdAt,
+			updatedAt: currency.updatedAt,
+			deletedAt: currency.deletedAt,
 		}
 	}
 
@@ -578,6 +599,77 @@ export class FakeDatabase {
 			}
 		}
 
+		if (sql.includes('INSERT INTO currencies')) {
+			const [code, name, symbol, decimalPlaces] = queryParams as [string, string, string, number]
+			const normalizedCode = code.toUpperCase()
+
+			if (this.currencies.has(normalizedCode)) {
+				throw { code: '23505' }
+			}
+
+			const timestamp = new Date().toISOString()
+			this.currencies.set(normalizedCode, {
+				code: normalizedCode,
+				name: name.trim(),
+				symbol: symbol.trim(),
+				decimalPlaces,
+				isActive: true,
+			})
+
+			return {
+				rowCount: 1,
+				rows: [
+					{
+						code: normalizedCode,
+						name: name.trim(),
+						symbol: symbol.trim(),
+						decimalPlaces,
+						isActive: true,
+						createdAt: timestamp,
+						updatedAt: timestamp,
+						deletedAt: null,
+					},
+				],
+			}
+		}
+
+		if (sql.includes('FROM currencies') && sql.includes('ORDER BY code ASC')) {
+			let currencies = [...this.currencies.values()]
+
+			if (sql.includes('WHERE deleted_at IS NULL')) {
+				currencies = currencies.filter((currency) => currency.deletedAt === null)
+			}
+
+			if (sql.includes('AND is_active = true')) {
+				currencies = currencies.filter((currency) => currency.isActive)
+			}
+
+			return {
+				rowCount: currencies.length,
+				rows: currencies
+					.sort((left, right) => left.code.localeCompare(right.code))
+					.map((currency) => this.buildCurrencyResponse(currency)),
+			}
+		}
+
+		if (sql.includes('FROM currencies') && sql.includes('WHERE code = $1')) {
+			const [code] = queryParams as [string]
+			const currency = this.currencies.get(code.toUpperCase())
+
+			if (!currency) {
+				return { rowCount: 0, rows: [] }
+			}
+
+			if (sql.includes('AND deleted_at IS NULL') && currency.deletedAt !== null) {
+				return { rowCount: 0, rows: [] }
+			}
+
+			return {
+				rowCount: 1,
+				rows: [this.buildCurrencyResponse(currency)],
+			}
+		}
+
 		if (sql.includes('FROM categories') && sql.includes('WHERE id = $1') && sql.includes('is_default = true AND $2 = true')) {
 			const [id, isAdmin, userId] = queryParams as [string, boolean, string]
 			const category = this.categories.get(id)
@@ -789,6 +881,45 @@ export class FakeDatabase {
 			const timestamp = new Date().toISOString()
 			account.deletedAt = timestamp
 			account.updatedAt = timestamp
+
+			return { rowCount: 1, rows: [] }
+		}
+
+		if (sql.includes('UPDATE currencies') && sql.includes('SET name = $2')) {
+			const [code, name, symbol, decimalPlaces, isActive] = queryParams as [string, string, string, number, boolean]
+			const currency = this.currencies.get(code.toUpperCase())
+
+			if (!currency) {
+				return { rowCount: 0, rows: [] }
+			}
+
+			currency.name = name.trim()
+			currency.symbol = symbol.trim()
+			currency.decimalPlaces = decimalPlaces
+			currency.isActive = isActive
+			if (isActive) {
+				currency.deletedAt = null
+			}
+			currency.updatedAt = new Date().toISOString()
+
+			return {
+				rowCount: 1,
+				rows: [this.buildCurrencyResponse(currency)],
+			}
+		}
+
+		if (sql.includes('UPDATE currencies') && sql.includes('SET deleted_at = NOW()')) {
+			const [code] = queryParams as [string]
+			const currency = this.currencies.get(code.toUpperCase())
+
+			if (!currency || currency.deletedAt !== null) {
+				return { rowCount: 0, rows: [] }
+			}
+
+			const timestamp = new Date().toISOString()
+			currency.isActive = false
+			currency.deletedAt = timestamp
+			currency.updatedAt = timestamp
 
 			return { rowCount: 1, rows: [] }
 		}
