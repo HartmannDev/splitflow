@@ -1,5 +1,8 @@
 import type { FastifyReply, FastifyRequest } from 'fastify'
-import { forbiddenError, unauthorizedError } from '../../common/errors.ts'
+
+import { AppError } from '../../common/errors.ts'
+
+const { unauthorizedError, forbiddenError } = AppError()
 
 export const requireAuth = async (req: FastifyRequest, _res: FastifyReply) => {
 	if (!req.session.user) {

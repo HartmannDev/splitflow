@@ -70,6 +70,13 @@ CREATE UNIQUE INDEX users_email_unique_idx
 	ON users (lower(email))
 	WHERE deleted_at IS NULL;
 
+CREATE TABLE verification_tokens (
+    user_id uuid NOT NULL REFERENCES users(id),
+    token VARCHAR(128) NOT NULL UNIQUE,
+    expires_at timestamptz NOT NULL,
+    PRIMARY KEY (user_id, token)
+);
+
 CREATE TABLE currencies (
 	code char(3) PRIMARY KEY,
 	name text NOT NULL,
