@@ -8,7 +8,6 @@ import type { UserRow } from '../helpers/fake-db.ts'
 describe('users integration', () => {
 	const passwordPepper = 'test-pepper'
 	const validPassword = 'Secret123!'
-	const resetPassword = 'Reset123!'
 	const adminId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
 	const userId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
 	let fakeDatabase: ReturnType<typeof buildTestApp>['fakeDatabase']
@@ -420,60 +419,6 @@ describe('users integration', () => {
 			error: 'Forbidden',
 			message: 'Admins cannot manage their own account lifecycle',
 		})
-	})
-
-	it('allows admins to reset a user password', async () => {
-		const { createHash } = buildHashValidator(passwordPepper)
-		const { passwordHash } = await createHash(validPassword)
-
-		await seedUser({
-			id: adminId,
-			role: 'admin',
-			name: 'Admin',
-			lastname: 'User',
-			email: 'admin@example.com',
-			passwordHash,
-			emailVerifiedAt: '2026-03-25T00:00:00.000Z',
-		})
-
-		await seedUser({
-			id: userId,
-			role: 'user',
-			name: 'Regular',
-			lastname: 'User',
-			email: 'user@example.com',
-			passwordHash,
-			emailVerifiedAt: null,
-		})
-
-		const { cookie } = await login('admin@example.com', validPassword)
-
-		const resetResponse = await app.inject({
-			method: 'POST',
-			url: `/users/${userId}/reset-password`,
-			headers: {
-				cookie,
-			},
-			payload: {
-				password: resetPassword,
-			},
-		})
-
-		expect(resetResponse.statusCode).toBe(200)
-		expect(resetResponse.json()).toEqual({
-			message: 'Password reset successfully',
-		})
-
-		const loginResponse = await app.inject({
-			method: 'POST',
-			url: '/login',
-			payload: {
-				email: 'user@example.com',
-				password: resetPassword,
-			},
-		})
-
-		expect(loginResponse.statusCode).toBe(200)
 	})
 
 	it('prevents admins from deleting their own account and soft deletes other users', async () => {

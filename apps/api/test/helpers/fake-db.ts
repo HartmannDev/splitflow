@@ -1,11 +1,17 @@
-import type { User } from '../../src/modules/users/model.ts'
+import type { UserType } from '../../src/modules/users/model.ts'
 
 type SessionRow = {
 	sess: string
 	expiresAt: Date
 }
 
-type UserRow = Pick<User, 'id' | 'role' | 'name' | 'lastname' | 'email'> & {
+type VerificationTokenRow = {
+	userId: string
+	token: string
+	expiresAt: Date
+}
+
+type UserRow = Pick<UserType, 'id' | 'role' | 'name' | 'lastname' | 'email'> & {
 	passwordHash: string
 	emailVerifiedAt?: string | null
 	createdAt?: string
@@ -73,6 +79,7 @@ class FakePool {
 export class FakeDatabase {
 	public readonly pool = new FakePool()
 	private readonly users = new Map<string, UserRow>()
+	private readonly verificationTokens = new Map<string, VerificationTokenRow>()
 
 	private buildUserResponse(user: UserRow) {
 		return {
@@ -109,7 +116,8 @@ export class FakeDatabase {
 		if (sql.includes('password_hash as "passwordHash"') && sql.includes('email_verified_at as "emailVerifiedAt"')) {
 			const [email] = queryParams as [string]
 			const user = [...this.users.values()].find(
-				(candidate) => candidate.email.toLowerCase() === email.toLowerCase() && candidate.deletedAt === null && candidate.isActive,
+				(candidate) =>
+					candidate.email.toLowerCase() === email.toLowerCase() && candidate.deletedAt === null && candidate.isActive,
 			)
 
 			return {
@@ -130,16 +138,21 @@ export class FakeDatabase {
 
 		if (sql.includes('INSERT INTO users')) {
 			const isManagedCreate = queryParams.length === 7
-			const [id, roleOrName, nameOrLastname, lastnameOrEmail, emailOrPasswordHash, passwordHashOrEmailVerifiedAt, emailVerifiedAt] =
-				queryParams as [string, string, string, string, string, string, string | null]
+			const [
+				id,
+				roleOrName,
+				nameOrLastname,
+				lastnameOrEmail,
+				emailOrPasswordHash,
+				passwordHashOrEmailVerifiedAt,
+				emailVerifiedAt,
+			] = queryParams as [string, string, string, string, string, string, string | null]
 
 			const role = isManagedCreate ? roleOrName : 'user'
 			const name = isManagedCreate ? nameOrLastname : roleOrName
 			const lastname = isManagedCreate ? lastnameOrEmail : nameOrLastname
 			const email = isManagedCreate ? emailOrPasswordHash : lastnameOrEmail
-			const passwordHash = isManagedCreate
-				? passwordHashOrEmailVerifiedAt
-				: (emailOrPasswordHash as string)
+			const passwordHash = isManagedCreate ? passwordHashOrEmailVerifiedAt : (emailOrPasswordHash as string)
 			const verifiedAt = isManagedCreate ? emailVerifiedAt : (passwordHashOrEmailVerifiedAt as string | null)
 
 			const emailExists = [...this.users.values()].some((user) => user.email.toLowerCase() === email.toLowerCase())
@@ -164,6 +177,37 @@ export class FakeDatabase {
 			})
 
 			return { rowCount: 1, rows: [] }
+		}
+
+		if (sql.includes('INSERT INTO verification_tokens')) {
+			const [userId, token] = queryParams as [string, string, string]
+			const expiresAt = new Date(Date.now() + 10 * 60 * 1000)
+
+			this.verificationTokens.set(token, {
+				userId,
+				token,
+				expiresAt,
+			})
+
+			return { rowCount: 1, rows: [] }
+		}
+
+		if (sql.includes('FROM verification_tokens') && sql.includes('WHERE token = $1')) {
+			const [token] = queryParams as [string]
+			const verificationToken = this.verificationTokens.get(token)
+
+			if (!verificationToken || verificationToken.expiresAt <= new Date()) {
+				return { rowCount: 0, rows: [] }
+			}
+
+			return {
+				rowCount: 1,
+				rows: [
+					{
+						user_id: verificationToken.userId,
+					},
+				],
+			}
 		}
 
 		if (sql.includes('FROM users') && sql.includes('WHERE id = $1') && sql.includes('deleted_at IS NULL')) {
@@ -194,7 +238,23 @@ export class FakeDatabase {
 			}
 		}
 
-		if (sql.includes('FROM users') && sql.includes('WHERE deleted_at IS NULL') && sql.includes('ORDER BY created_at DESC')) {
+		if (sql.includes('SELECT id') && sql.includes('FROM users') && sql.includes('WHERE lower(email) = lower($1)')) {
+			const [email] = queryParams as [string]
+			const user = [...this.users.values()].find(
+				(candidate) => candidate.email.toLowerCase() === email.toLowerCase() && candidate.deletedAt === null,
+			)
+
+			return {
+				rowCount: user ? 1 : 0,
+				rows: user ? [{ id: user.id }] : [],
+			}
+		}
+
+		if (
+			sql.includes('FROM users') &&
+			sql.includes('WHERE deleted_at IS NULL') &&
+			sql.includes('ORDER BY created_at DESC')
+		) {
 			const rows = [...this.users.values()]
 				.filter((user) => user.deletedAt === null)
 				.sort((left, right) => right.createdAt!.localeCompare(left.createdAt!))
@@ -206,7 +266,11 @@ export class FakeDatabase {
 			}
 		}
 
-		if (sql.includes('FROM users') && sql.includes('ORDER BY created_at DESC') && !sql.includes('WHERE deleted_at IS NULL')) {
+		if (
+			sql.includes('FROM users') &&
+			sql.includes('ORDER BY created_at DESC') &&
+			!sql.includes('WHERE deleted_at IS NULL')
+		) {
 			const rows = [...this.users.values()]
 				.sort((left, right) => right.createdAt!.localeCompare(left.createdAt!))
 				.map((user) => this.buildUserResponse(user))
@@ -233,9 +297,7 @@ export class FakeDatabase {
 
 			const emailExists = [...this.users.values()].some(
 				(candidate) =>
-					candidate.id !== id &&
-					candidate.deletedAt === null &&
-					candidate.email.toLowerCase() === email.toLowerCase(),
+					candidate.id !== id && candidate.deletedAt === null && candidate.email.toLowerCase() === email.toLowerCase(),
 			)
 
 			if (emailExists) {
@@ -263,6 +325,34 @@ export class FakeDatabase {
 			}
 
 			user.passwordHash = passwordHash
+			user.updatedAt = new Date().toISOString()
+
+			return { rowCount: 1, rows: [] }
+		}
+
+		if (sql.includes('UPDATE users') && sql.includes('SET password_hash = $1')) {
+			const [passwordHash, id] = queryParams as [string, string]
+			const user = this.users.get(id)
+
+			if (!user || user.deletedAt !== null) {
+				return { rowCount: 0, rows: [] }
+			}
+
+			user.passwordHash = passwordHash
+			user.updatedAt = new Date().toISOString()
+
+			return { rowCount: 1, rows: [] }
+		}
+
+		if (sql.includes('UPDATE users') && sql.includes('SET email_verified_at = NOW()')) {
+			const [id] = queryParams as [string]
+			const user = this.users.get(id)
+
+			if (!user) {
+				return { rowCount: 0, rows: [] }
+			}
+
+			user.emailVerifiedAt = new Date().toISOString()
 			user.updatedAt = new Date().toISOString()
 
 			return { rowCount: 1, rows: [] }
@@ -303,11 +393,34 @@ export class FakeDatabase {
 			return { rowCount: 1, rows: [] }
 		}
 
+		if (sql.includes('DELETE FROM verification_tokens') && sql.includes('WHERE user_id = $1')) {
+			const [userId] = queryParams as [string]
+			let deletedCount = 0
+
+			for (const [token, verificationToken] of this.verificationTokens.entries()) {
+				if (verificationToken.userId === userId) {
+					this.verificationTokens.delete(token)
+					deletedCount += 1
+				}
+			}
+
+			return { rowCount: deletedCount, rows: [] }
+		}
+
+		if (sql.includes('DELETE FROM verification_tokens') && sql.includes('WHERE token = $1')) {
+			const [token] = queryParams as [string]
+			const deleted = this.verificationTokens.delete(token)
+
+			return { rowCount: deleted ? 1 : 0, rows: [] }
+		}
+
 		throw new Error(`Unsupported database query: ${sql}`)
 	}
 
-	async transaction() {
-		throw new Error('Not implemented in fake database')
+	async transaction<T>(callback: (db: Pick<FakeDatabase, 'query'>) => Promise<T>) {
+		return await callback({
+			query: this.query.bind(this),
+		})
 	}
 
 	async closePool() {

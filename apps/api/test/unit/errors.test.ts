@@ -1,12 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
-import {
-	conflictError,
-	forbiddenError,
-	isDatabaseError,
-	notFoundError,
-	unauthorizedError,
-} from '../../src/common/errors.ts'
+import { AppError } from '../../src/common/errors.ts'
+
+const { conflictError, forbiddenError, isDatabaseError, notFoundError, unauthorizedError } = AppError()
 
 describe('error helpers', () => {
 	it('creates a conflict error', () => {
