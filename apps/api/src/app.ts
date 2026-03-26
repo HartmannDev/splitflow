@@ -16,6 +16,7 @@ import { accountsRoute } from './modules/accounts/route.ts'
 import { PgSessionStore } from './modules/auth/pg-session-store.ts'
 import { authRoute } from './modules/auth/route.ts'
 import { categoriesRoute } from './modules/categories/route.ts'
+import { contactsRoute } from './modules/contacts/route.ts'
 import { currenciesRoute } from './modules/currencies/route.ts'
 import { UsersRoute } from './modules/users/route.ts'
 
@@ -92,6 +93,7 @@ export const buildApp = (options: BuildAppOptions): FastifyInstance => {
 	app.register(authRoute, appDeps)
 	app.register(accountsRoute, appDeps)
 	app.register(categoriesRoute, appDeps)
+	app.register(contactsRoute, appDeps)
 	app.register(currenciesRoute, appDeps)
 	app.register(UsersRoute, appDeps)
 

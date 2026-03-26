@@ -58,6 +58,17 @@ type AccountRow = {
 	deletedAt?: string | null
 }
 
+type ContactRow = {
+	id: string
+	userId: string
+	name: string
+	email?: string | null
+	linkedUserId?: string | null
+	createdAt?: string
+	updatedAt?: string
+	deletedAt?: string | null
+}
+
 class FakePool {
 	private readonly sessions = new Map<string, SessionRow>()
 
@@ -121,6 +132,7 @@ export class FakeDatabase {
 	private readonly categories = new Map<string, CategoryRow>()
 	private readonly currencies = new Map<string, CurrencyRow>()
 	private readonly accounts = new Map<string, AccountRow>()
+	private readonly contacts = new Map<string, ContactRow>()
 
 	private buildUserResponse(user: UserRow) {
 		return {
@@ -252,6 +264,50 @@ export class FakeDatabase {
 			createdAt: account.createdAt ?? timestamp,
 			updatedAt: account.updatedAt ?? timestamp,
 			deletedAt: account.deletedAt ?? null,
+		}
+	}
+
+	private normalizeSeedContact(contact: ContactRow): ContactRow {
+		const timestamp = new Date().toISOString()
+
+		return {
+			...contact,
+			name: contact.name.trim(),
+			email: contact.email?.toLowerCase() ?? null,
+			linkedUserId: contact.linkedUserId ?? null,
+			createdAt: contact.createdAt ?? timestamp,
+			updatedAt: contact.updatedAt ?? timestamp,
+			deletedAt: contact.deletedAt ?? null,
+		}
+	}
+
+	private buildContactResponse(contact: ContactRow) {
+		return {
+			id: contact.id,
+			userId: contact.userId,
+			name: contact.name,
+			email: contact.email ?? null,
+			createdAt: contact.createdAt,
+			updatedAt: contact.updatedAt,
+			deletedAt: contact.deletedAt,
+		}
+	}
+
+	private assertContactEmailUnique(nextContact: ContactRow) {
+		if (!nextContact.email) {
+			return
+		}
+
+		const duplicated = [...this.contacts.values()].some(
+			(contact) =>
+				contact.id !== nextContact.id &&
+				contact.userId === nextContact.userId &&
+				contact.deletedAt === null &&
+				contact.email?.toLowerCase() === nextContact.email?.toLowerCase(),
+		)
+
+		if (duplicated) {
+			throw { code: '23505' }
 		}
 	}
 
@@ -800,6 +856,21 @@ export class FakeDatabase {
 			return { rowCount: 1, rows: [] }
 		}
 
+		if (sql.includes('INSERT INTO contacts')) {
+			const [id, userId, name, email] = queryParams as [string, string, string, string | null]
+			const contact = this.normalizeSeedContact({
+				id,
+				userId,
+				name,
+				email,
+			})
+
+			this.assertContactEmailUnique(contact)
+			this.contacts.set(id, contact)
+
+			return { rowCount: 1, rows: [] }
+		}
+
 		if (sql.includes('FROM accounts') && sql.includes('WHERE id = $1') && sql.includes('user_id = $2')) {
 			const [id, userId] = queryParams as [string, string]
 			const account = this.accounts.get(id)
@@ -885,6 +956,82 @@ export class FakeDatabase {
 			return { rowCount: 1, rows: [] }
 		}
 
+		if (sql.includes('FROM contacts') && sql.includes('WHERE id = $1') && sql.includes('user_id = $2')) {
+			const [id, userId] = queryParams as [string, string]
+			const contact = this.contacts.get(id)
+
+			if (!contact || contact.userId !== userId) {
+				return { rowCount: 0, rows: [] }
+			}
+
+			if (sql.includes('AND deleted_at IS NULL') && contact.deletedAt !== null) {
+				return { rowCount: 0, rows: [] }
+			}
+
+			return {
+				rowCount: 1,
+				rows: [this.buildContactResponse(contact)],
+			}
+		}
+
+		if (sql.includes('FROM contacts') && sql.includes('WHERE user_id = $1') && sql.includes('ORDER BY created_at DESC')) {
+			const [userId] = queryParams as [string]
+			let contacts = [...this.contacts.values()].filter((contact) => contact.userId === userId)
+
+			if (sql.includes('AND deleted_at IS NULL')) {
+				contacts = contacts.filter((contact) => contact.deletedAt === null)
+			}
+
+			contacts.sort((left, right) => right.createdAt!.localeCompare(left.createdAt!))
+
+			return {
+				rowCount: contacts.length,
+				rows: contacts.map((contact) => this.buildContactResponse(contact)),
+			}
+		}
+
+		if (sql.includes('UPDATE contacts') && sql.includes('SET name = $2') && sql.includes('RETURNING')) {
+			const [id, name, email] = queryParams as [string, string, string | null]
+			const contact = this.contacts.get(id)
+
+			if (!contact || contact.deletedAt !== null) {
+				return { rowCount: 0, rows: [] }
+			}
+
+			const nextContact = this.normalizeSeedContact({
+				...contact,
+				name,
+				email,
+				createdAt: contact.createdAt,
+			})
+
+			this.assertContactEmailUnique(nextContact)
+
+			contact.name = nextContact.name
+			contact.email = nextContact.email
+			contact.updatedAt = new Date().toISOString()
+
+			return {
+				rowCount: 1,
+				rows: [this.buildContactResponse(contact)],
+			}
+		}
+
+		if (sql.includes('UPDATE contacts') && sql.includes('SET deleted_at = NOW()')) {
+			const [id] = queryParams as [string]
+			const contact = this.contacts.get(id)
+
+			if (!contact || contact.deletedAt !== null) {
+				return { rowCount: 0, rows: [] }
+			}
+
+			const timestamp = new Date().toISOString()
+			contact.deletedAt = timestamp
+			contact.updatedAt = timestamp
+
+			return { rowCount: 1, rows: [] }
+		}
+
 		if (sql.includes('UPDATE currencies') && sql.includes('SET name = $2')) {
 			const [code, name, symbol, decimalPlaces, isActive] = queryParams as [string, string, string, number, boolean]
 			const currency = this.currencies.get(code.toUpperCase())
@@ -957,6 +1104,10 @@ export class FakeDatabase {
 	seedAccount(account: AccountRow) {
 		this.accounts.set(account.id, this.normalizeSeedAccount(account))
 	}
+
+	seedContact(contact: ContactRow) {
+		this.contacts.set(contact.id, this.normalizeSeedContact(contact))
+	}
 }
 
-export type { AccountRow, CategoryRow, CurrencyRow, UserRow }
+export type { AccountRow, CategoryRow, ContactRow, CurrencyRow, UserRow }
