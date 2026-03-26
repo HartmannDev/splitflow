@@ -20,6 +20,19 @@ type UserRow = Pick<UserType, 'id' | 'role' | 'name' | 'lastname' | 'email'> & {
 	isActive?: boolean
 }
 
+type CategoryRow = {
+	id: string
+	userId: string | null
+	type: 'income' | 'expense'
+	name: string
+	icon: string
+	color: string
+	isDefault: boolean
+	createdAt?: string
+	updatedAt?: string
+	deletedAt?: string | null
+}
+
 class FakePool {
 	private readonly sessions = new Map<string, SessionRow>()
 
@@ -80,6 +93,7 @@ export class FakeDatabase {
 	public readonly pool = new FakePool()
 	private readonly users = new Map<string, UserRow>()
 	private readonly verificationTokens = new Map<string, VerificationTokenRow>()
+	private readonly categories = new Map<string, CategoryRow>()
 
 	private buildUserResponse(user: UserRow) {
 		return {
@@ -107,6 +121,51 @@ export class FakeDatabase {
 			emailVerifiedAt: user.emailVerifiedAt ?? null,
 			deletedAt: user.deletedAt ?? null,
 			isActive: user.isActive ?? true,
+		}
+	}
+
+	private buildCategoryResponse(category: CategoryRow) {
+		return {
+			id: category.id,
+			userId: category.userId,
+			type: category.type,
+			name: category.name,
+			icon: category.icon,
+			color: category.color,
+			isDefault: category.isDefault,
+			createdAt: category.createdAt,
+			updatedAt: category.updatedAt,
+			deletedAt: category.deletedAt,
+		}
+	}
+
+	private normalizeSeedCategory(category: CategoryRow): CategoryRow {
+		const timestamp = new Date().toISOString()
+
+		return {
+			...category,
+			name: category.name.trim(),
+			icon: category.icon.trim(),
+			color: category.color.trim(),
+			createdAt: category.createdAt ?? timestamp,
+			updatedAt: category.updatedAt ?? timestamp,
+			deletedAt: category.deletedAt ?? null,
+		}
+	}
+
+	private assertCategoryUnique(nextCategory: CategoryRow) {
+		const duplicated = [...this.categories.values()].some(
+			(category) =>
+				category.id !== nextCategory.id &&
+				category.deletedAt === null &&
+				category.type === nextCategory.type &&
+				category.name.toLowerCase() === nextCategory.name.toLowerCase() &&
+				((category.isDefault && nextCategory.isDefault) ||
+					(!category.isDefault && !nextCategory.isDefault && category.userId === nextCategory.userId)),
+		)
+
+		if (duplicated) {
+			throw { code: '23505' }
 		}
 	}
 
@@ -414,6 +473,140 @@ export class FakeDatabase {
 			return { rowCount: deleted ? 1 : 0, rows: [] }
 		}
 
+		if (sql.includes('INSERT INTO categories')) {
+			const [id, userId, type, name, icon, color, isDefault] = queryParams as [
+				string,
+				string | null,
+				CategoryRow['type'],
+				string,
+				string,
+				string,
+				boolean,
+			]
+
+			const category: CategoryRow = {
+				id,
+				userId,
+				type,
+				name: name.trim(),
+				icon: icon.trim(),
+				color: color.trim(),
+				isDefault,
+				createdAt: new Date().toISOString(),
+				updatedAt: new Date().toISOString(),
+				deletedAt: null,
+			}
+
+			this.assertCategoryUnique(category)
+			this.categories.set(id, category)
+
+			return { rowCount: 1, rows: [] }
+		}
+
+		if (sql.includes('FROM categories') && sql.includes('WHERE id = $1') && sql.includes('is_default = true AND $2 = true')) {
+			const [id, isAdmin, userId] = queryParams as [string, boolean, string]
+			const category = this.categories.get(id)
+
+			if (!category || category.deletedAt !== null) {
+				return { rowCount: 0, rows: [] }
+			}
+
+			const canAccess = (category.isDefault && isAdmin) || (!category.isDefault && category.userId === userId)
+
+			return {
+				rowCount: canAccess ? 1 : 0,
+				rows: canAccess ? [this.buildCategoryResponse(category)] : [],
+			}
+		}
+
+		if (sql.includes('FROM categories') && sql.includes('ORDER BY is_default DESC')) {
+			const [firstParam, secondParam] = queryParams as [string | undefined, CategoryRow['type'] | undefined]
+			const userId = typeof firstParam === 'string' && firstParam.includes('-') ? firstParam : undefined
+			const typeFilter =
+				firstParam === 'income' || firstParam === 'expense'
+					? firstParam
+					: secondParam === 'income' || secondParam === 'expense'
+						? secondParam
+						: undefined
+
+			let categories = [...this.categories.values()].filter((category) => category.deletedAt === null)
+
+			if (sql.includes('AND is_default = true') && !sql.includes('OR (user_id = $1')) {
+				categories = categories.filter((category) => category.isDefault)
+			} else if (sql.includes('AND user_id = $1') && sql.includes('AND is_default = false')) {
+				categories = categories.filter((category) => !category.isDefault && category.userId === userId)
+			} else if (sql.includes('OR (user_id = $1 AND is_default = false)')) {
+				categories = categories.filter((category) => category.isDefault || (!category.isDefault && category.userId === userId))
+			}
+
+			if (typeFilter) {
+				categories = categories.filter((category) => category.type === typeFilter)
+			}
+
+			categories.sort((left, right) => {
+				if (left.isDefault !== right.isDefault) {
+					return left.isDefault ? -1 : 1
+				}
+
+				const nameComparison = left.name.toLowerCase().localeCompare(right.name.toLowerCase())
+				if (nameComparison !== 0) {
+					return nameComparison
+				}
+
+				return left.createdAt!.localeCompare(right.createdAt!)
+			})
+
+			return {
+				rowCount: categories.length,
+				rows: categories.map((category) => this.buildCategoryResponse(category)),
+			}
+		}
+
+		if (sql.includes('UPDATE categories') && sql.includes('SET name = $2') && sql.includes('RETURNING')) {
+			const [id, name, type, icon, color] = queryParams as [string, string, CategoryRow['type'], string, string]
+			const category = this.categories.get(id)
+
+			if (!category || category.deletedAt !== null) {
+				return { rowCount: 0, rows: [] }
+			}
+
+			const nextCategory: CategoryRow = {
+				...category,
+				name: name.trim(),
+				type,
+				icon: icon.trim(),
+				color: color.trim(),
+			}
+
+			this.assertCategoryUnique(nextCategory)
+
+			category.name = nextCategory.name
+			category.type = nextCategory.type
+			category.icon = nextCategory.icon
+			category.color = nextCategory.color
+			category.updatedAt = new Date().toISOString()
+
+			return {
+				rowCount: 1,
+				rows: [this.buildCategoryResponse(category)],
+			}
+		}
+
+		if (sql.includes('UPDATE categories') && sql.includes('SET deleted_at = NOW()')) {
+			const [id] = queryParams as [string]
+			const category = this.categories.get(id)
+
+			if (!category || category.deletedAt !== null) {
+				return { rowCount: 0, rows: [] }
+			}
+
+			const timestamp = new Date().toISOString()
+			category.deletedAt = timestamp
+			category.updatedAt = timestamp
+
+			return { rowCount: 1, rows: [] }
+		}
+
 		throw new Error(`Unsupported database query: ${sql}`)
 	}
 
@@ -434,6 +627,10 @@ export class FakeDatabase {
 	seedUser(user: UserRow) {
 		this.users.set(user.id, this.normalizeSeedUser(user))
 	}
+
+	seedCategory(category: CategoryRow) {
+		this.categories.set(category.id, this.normalizeSeedCategory(category))
+	}
 }
 
-export type { UserRow }
+export type { CategoryRow, UserRow }

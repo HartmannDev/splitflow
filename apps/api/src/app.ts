@@ -14,6 +14,7 @@ import {
 import { errorHandler } from './common/error-handler.ts'
 import { PgSessionStore } from './modules/auth/pg-session-store.ts'
 import { authRoute } from './modules/auth/route.ts'
+import { categoriesRoute } from './modules/categories/route.ts'
 import { UsersRoute } from './modules/users/route.ts'
 
 import type { AppDependency, BuildAppOptions } from './types/app.js'
@@ -87,6 +88,7 @@ export const buildApp = (options: BuildAppOptions): FastifyInstance => {
 	}
 
 	app.register(authRoute, appDeps)
+	app.register(categoriesRoute, appDeps)
 	app.register(UsersRoute, appDeps)
 
 	return app
