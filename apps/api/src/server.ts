@@ -2,6 +2,8 @@ import process from 'node:process'
 
 import { buildApp } from './app.ts'
 import { db } from './db/db.ts'
+import { buildEmailTransporter } from './plugins/nodemailer.ts'
+
 import type { NodeEnvTypes } from './types/app.d.ts'
 
 const port = process.env.PORT ? parseInt(process.env.PORT) : 3000
@@ -25,15 +27,19 @@ if (!nodeEnv || !['dev', 'prod', 'test'].includes(nodeEnv)) {
 	process.exit(1)
 }
 
+const emailTransporter = buildEmailTransporter()
+
 const app = buildApp({
 	sessionSecret,
 	passwordPepper,
 	nodeEnv,
 	database: db,
+	emailTransporter,
 })
 
 try {
 	await db.testConnection()
+	await emailTransporter.verify()
 
 	const address = await app.listen({ port, host })
 	app.log.info(`server listening on ${address}`)

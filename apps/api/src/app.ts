@@ -1,20 +1,21 @@
-import { fastify, type FastifyInstance } from 'fastify'
+import { fastifyCookie } from '@fastify/cookie'
+import { fastifyCors } from '@fastify/cors'
+import { fastifySession } from '@fastify/session'
+import { fastifySwagger } from '@fastify/swagger'
+import { fastifySwaggerUi } from '@fastify/swagger-ui'
+import { type FastifyInstance, fastify } from 'fastify'
 import {
+	jsonSchemaTransform,
 	serializerCompiler,
 	validatorCompiler,
-	jsonSchemaTransform,
 	type ZodTypeProvider,
 } from 'fastify-type-provider-zod'
-import { fastifySwagger } from '@fastify/swagger'
-import { fastifyCors } from '@fastify/cors'
-import { fastifySwaggerUi } from '@fastify/swagger-ui'
-import { fastifySession } from '@fastify/session'
-import { fastifyCookie } from '@fastify/cookie'
 
-import { UsersRoute } from './modules/users/route.ts'
 import { errorHandler } from './common/error-handler.ts'
-import { authRoute } from './modules/auth/route.ts'
 import { PgSessionStore } from './modules/auth/pg-session-store.ts'
+import { authRoute } from './modules/auth/route.ts'
+import { UsersRoute } from './modules/users/route.ts'
+
 import type { AppDependency, BuildAppOptions } from './types/app.js'
 
 export const buildApp = (options: BuildAppOptions): FastifyInstance => {
@@ -77,6 +78,7 @@ export const buildApp = (options: BuildAppOptions): FastifyInstance => {
 
 	const appDeps: AppDependency = {
 		db: options.database,
+		emailTransporter: options.emailTransporter,
 		config: {
 			passwordPepper: options.passwordPepper,
 			sessionSecret: options.sessionSecret,
