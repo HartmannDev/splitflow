@@ -1,43 +1,43 @@
 import { randomUUID } from 'node:crypto'
+
 import type { FastifyReply, FastifyRequest } from 'fastify'
 
-import { conflictError, forbiddenError, isDatabaseError, notFoundError } from '../../common/errors.ts'
+import { AppError } from '../../common/errors.ts'
 import { validatedResponse } from '../../common/response-validator.ts'
-import type { AppDependency } from '../../types/app.js'
 import { buildHashValidator } from '../auth/hash-validator.ts'
-import {
-	type CreateManagedUserInput,
-	CreateUserResponseSchema,
-	type GetUsersQueryInput,
-	PublicUserSchema,
-	type ResetUserPasswordInput,
-	ResetUserPasswordResponseSchema,
-	type UpdateManagedUserInput,
-	type UpdateOwnUserInput,
-	type UserID,
-	UserListSchema,
+import { UserSchemas } from './model.ts'
+
+import type { AppDependency } from '../../types/app.js'
+import type {
+	CreateManagedUserType,
+	GetUsersQueryType,
+	UpdateManagedUserType,
+	UpdateOwnUserType,
+	UserIdType,
+	UserType,
 } from './model.ts'
 
 const userSelectSql = `SELECT
-	id,
-	role,
-	name,
-	last_name as "lastname",
-	email,
-	is_active as "isActive",
-	to_json(email_verified_at) as "emailVerifiedAt",
-	to_json(created_at) as "createdAt",
-	to_json(updated_at) as "updatedAt",
-	to_json(deleted_at) as "deletedAt"
-FROM users`
+			id,
+			role,
+			name,
+			last_name as "lastname",
+			email,
+			is_active as "isActive",
+			to_json(email_verified_at) as "emailVerifiedAt",
+			to_json(created_at) as "createdAt",
+			to_json(updated_at) as "updatedAt",
+			to_json(deleted_at) as "deletedAt"
+		FROM users`
 
 export const buildUserController = (deps: AppDependency) => {
 	const { db } = deps
 	const { passwordPepper, nodeEnv } = deps.config
 	const hashValidator = buildHashValidator(passwordPepper)
-	const buildTemporaryPassword = () => `Temp-${randomUUID()}!Aa1`
+	const { conflictError, forbiddenError, notFoundError, isDatabaseError } = AppError()
+	const { CreateUserResponseSchema, UserListSchema, UserSchema } = UserSchemas()
 
-	const getUserById = async (id: string, includeDeleted = false) => {
+	const getUserById = async (id: string, includeDeleted = false): Promise<UserType> => {
 		const payload = await db.query(
 			`${userSelectSql}
 			WHERE id = $1
@@ -49,7 +49,7 @@ export const buildUserController = (deps: AppDependency) => {
 	}
 
 	const getUsers = async (req: FastifyRequest, res: FastifyReply) => {
-		const { includeInactive = false } = req.query as GetUsersQueryInput
+		const { includeInactive = false } = req.query as GetUsersQueryType
 		const payload = await db.query(
 			`${userSelectSql}
 			${includeInactive ? '' : 'WHERE deleted_at IS NULL'}
@@ -60,19 +60,19 @@ export const buildUserController = (deps: AppDependency) => {
 	}
 
 	const getUser = async (req: FastifyRequest, res: FastifyReply) => {
-		const { id } = req.params as UserID
+		const { id } = req.params as UserIdType
 		const user = await getUserById(id)
 
 		if (!user) {
 			throw notFoundError('User not found')
 		}
 
-		return validatedResponse(res, 200, PublicUserSchema, user)
+		return validatedResponse(res, 200, UserSchema, user)
 	}
 
 	const updateManagedUser = async (req: FastifyRequest, res: FastifyReply) => {
-		const { id } = req.params as UserID
-		const body = req.body as UpdateManagedUserInput
+		const { id } = req.params as UserIdType
+		const { role, isActive } = req.body as UpdateManagedUserType
 		const sessionUser = req.session.user!
 
 		if (sessionUser.userId === id) {
@@ -84,8 +84,8 @@ export const buildUserController = (deps: AppDependency) => {
 			throw notFoundError('User not found')
 		}
 
-		const nextRole = body.role ?? currentUser.role
-		const nextIsActive = body.isActive ?? currentUser.isActive
+		const nextRole = role ?? currentUser.role
+		const nextIsActive = isActive ?? currentUser.isActive
 
 		const payload = await db.query(
 			`UPDATE users
@@ -112,13 +112,14 @@ export const buildUserController = (deps: AppDependency) => {
 			[id, nextRole, nextIsActive],
 		)
 
-		return validatedResponse(res, 200, PublicUserSchema, payload.rows[0])
+		return validatedResponse(res, 200, UserSchema, payload.rows[0])
 	}
 
 	const createUser = async (req: FastifyRequest, res: FastifyReply) => {
-		const { name, lastname, email, role = 'user' } = req.body as CreateManagedUserInput
+		const { name, lastname, email, role = 'user' } = req.body as CreateManagedUserType
 		const userID = randomUUID()
-		const { passwordHash } = await hashValidator.createHash(buildTemporaryPassword())
+		const randomPassword = `Temp-${randomUUID()}!Aa1`
+		const { passwordHash } = await hashValidator.createHash(randomPassword)
 		const normalizedEmail = email.toLowerCase()
 
 		try {
@@ -153,7 +154,7 @@ export const buildUserController = (deps: AppDependency) => {
 
 	const updateOwnUser = async (req: FastifyRequest, res: FastifyReply) => {
 		const sessionUser = req.session.user!
-		const body = req.body as UpdateOwnUserInput
+		const { email, lastname, name } = req.body as UpdateOwnUserType
 
 		const currentUser = await getUserById(sessionUser.userId)
 		if (!currentUser) {
@@ -161,7 +162,7 @@ export const buildUserController = (deps: AppDependency) => {
 			throw notFoundError('User not found')
 		}
 
-		const nextEmail = body.email ? body.email.toLowerCase() : currentUser.email
+		const nextEmail = email ? email.toLowerCase() : currentUser.email
 		const emailChanged = nextEmail !== currentUser.email
 		const nextEmailVerifiedAt = emailChanged ? null : currentUser.emailVerifiedAt
 
@@ -188,8 +189,8 @@ export const buildUserController = (deps: AppDependency) => {
 					to_json(deleted_at) as "deletedAt"`,
 				[
 					sessionUser.userId,
-					body.name ?? currentUser.name,
-					body.lastname ?? currentUser.lastname,
+					name ?? currentUser.name,
+					lastname ?? currentUser.lastname,
 					nextEmail,
 					nextEmailVerifiedAt,
 				],
@@ -206,7 +207,7 @@ export const buildUserController = (deps: AppDependency) => {
 				}
 			}
 
-			return validatedResponse(res, 200, PublicUserSchema, updatedUser)
+			return validatedResponse(res, 200, UserSchema, updatedUser)
 		} catch (error) {
 			if (isDatabaseError(error) && error.code === '23505') {
 				throw conflictError('Email already in use')
@@ -216,32 +217,8 @@ export const buildUserController = (deps: AppDependency) => {
 		}
 	}
 
-	const resetUserPassword = async (req: FastifyRequest, res: FastifyReply) => {
-		const { id } = req.params as UserID
-		const { password } = req.body as ResetUserPasswordInput
-		const user = await getUserById(id)
-		if (!user) {
-			throw notFoundError('User not found')
-		}
-
-		const { passwordHash } = await hashValidator.createHash(password)
-		await db.query(
-			`
-			UPDATE users
-			SET password_hash = $2,
-				updated_at = NOW()
-			WHERE id = $1
-				AND deleted_at IS NULL`,
-			[id, passwordHash],
-		)
-
-		return validatedResponse(res, 200, ResetUserPasswordResponseSchema, {
-			message: 'Password reset successfully',
-		})
-	}
-
 	const deleteUser = async (req: FastifyRequest, res: FastifyReply) => {
-		const { id } = req.params as UserID
+		const { id } = req.params as UserIdType
 		const sessionUser = req.session.user!
 
 		if (sessionUser.userId === id) {
@@ -270,7 +247,6 @@ export const buildUserController = (deps: AppDependency) => {
 		createUser,
 		getUser,
 		getUsers,
-		resetUserPassword,
 		deleteUser,
 		updateManagedUser,
 		updateOwnUser,
