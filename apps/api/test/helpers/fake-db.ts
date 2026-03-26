@@ -69,6 +69,26 @@ type ContactRow = {
 	deletedAt?: string | null
 }
 
+type GroupRow = {
+	id: string
+	ownerUserId: string
+	previousGroupId?: string | null
+	name: string
+	createdAt?: string
+	updatedAt?: string
+	deletedAt?: string | null
+}
+
+type GroupMemberRow = {
+	id: string
+	groupId: string
+	memberUserId?: string | null
+	memberContactId?: string | null
+	createdAt?: string
+	updatedAt?: string
+	deletedAt?: string | null
+}
+
 class FakePool {
 	private readonly sessions = new Map<string, SessionRow>()
 
@@ -133,6 +153,8 @@ export class FakeDatabase {
 	private readonly currencies = new Map<string, CurrencyRow>()
 	private readonly accounts = new Map<string, AccountRow>()
 	private readonly contacts = new Map<string, ContactRow>()
+	private readonly groups = new Map<string, GroupRow>()
+	private readonly groupMembers = new Map<string, GroupMemberRow>()
 
 	private buildUserResponse(user: UserRow) {
 		return {
@@ -290,6 +312,56 @@ export class FakeDatabase {
 			createdAt: contact.createdAt,
 			updatedAt: contact.updatedAt,
 			deletedAt: contact.deletedAt,
+		}
+	}
+
+	private normalizeSeedGroup(group: GroupRow): GroupRow {
+		const timestamp = new Date().toISOString()
+
+		return {
+			...group,
+			name: group.name.trim(),
+			previousGroupId: group.previousGroupId ?? null,
+			createdAt: group.createdAt ?? timestamp,
+			updatedAt: group.updatedAt ?? timestamp,
+			deletedAt: group.deletedAt ?? null,
+		}
+	}
+
+	private normalizeSeedGroupMember(member: GroupMemberRow): GroupMemberRow {
+		const timestamp = new Date().toISOString()
+
+		return {
+			...member,
+			memberUserId: member.memberUserId ?? null,
+			memberContactId: member.memberContactId ?? null,
+			createdAt: member.createdAt ?? timestamp,
+			updatedAt: member.updatedAt ?? timestamp,
+			deletedAt: member.deletedAt ?? null,
+		}
+	}
+
+	private buildGroupResponse(group: GroupRow) {
+		return {
+			id: group.id,
+			ownerUserId: group.ownerUserId,
+			previousGroupId: group.previousGroupId ?? null,
+			name: group.name,
+			createdAt: group.createdAt,
+			updatedAt: group.updatedAt,
+			deletedAt: group.deletedAt,
+		}
+	}
+
+	private buildGroupMemberResponse(member: GroupMemberRow) {
+		return {
+			id: member.id,
+			groupId: member.groupId,
+			memberUserId: member.memberUserId ?? null,
+			memberContactId: member.memberContactId ?? null,
+			createdAt: member.createdAt,
+			updatedAt: member.updatedAt,
+			deletedAt: member.deletedAt,
 		}
 	}
 
@@ -871,6 +943,18 @@ export class FakeDatabase {
 			return { rowCount: 1, rows: [] }
 		}
 
+		if (sql.includes('SELECT id') && sql.includes('FROM contacts') && sql.includes('id = ANY($2)')) {
+			const [userId, contactIds] = queryParams as [string, string[]]
+			const rows = [...this.contacts.values()]
+				.filter((contact) => contact.userId === userId && contact.deletedAt === null && contactIds.includes(contact.id))
+				.map((contact) => ({ id: contact.id }))
+
+			return {
+				rowCount: rows.length,
+				rows,
+			}
+		}
+
 		if (sql.includes('FROM accounts') && sql.includes('WHERE id = $1') && sql.includes('user_id = $2')) {
 			const [id, userId] = queryParams as [string, string]
 			const account = this.accounts.get(id)
@@ -1032,6 +1116,111 @@ export class FakeDatabase {
 			return { rowCount: 1, rows: [] }
 		}
 
+		if (sql.includes('INSERT INTO groups')) {
+			const [id, ownerUserId, previousGroupId, name] = queryParams as [string, string, string | null, string]
+			const group = this.normalizeSeedGroup({
+				id,
+				ownerUserId,
+				previousGroupId,
+				name,
+			})
+
+			this.groups.set(id, group)
+			return { rowCount: 1, rows: [] }
+		}
+
+		if (sql.includes('INSERT INTO group_members')) {
+			const [id, groupId, memberUserId, memberContactId] = queryParams as [string, string, string | null, string | null]
+			const member = this.normalizeSeedGroupMember({
+				id,
+				groupId,
+				memberUserId,
+				memberContactId,
+			})
+
+			this.groupMembers.set(id, member)
+			return { rowCount: 1, rows: [] }
+		}
+
+		if (sql.includes('FROM groups') && sql.includes('WHERE id = $1') && sql.includes('owner_user_id = $2')) {
+			const [id, ownerUserId] = queryParams as [string, string]
+			const group = this.groups.get(id)
+
+			if (!group || group.ownerUserId !== ownerUserId) {
+				return { rowCount: 0, rows: [] }
+			}
+
+			if (sql.includes('AND deleted_at IS NULL') && group.deletedAt !== null) {
+				return { rowCount: 0, rows: [] }
+			}
+
+			return {
+				rowCount: 1,
+				rows: [this.buildGroupResponse(group)],
+			}
+		}
+
+		if (sql.includes('FROM groups') && sql.includes('WHERE owner_user_id = $1') && sql.includes('ORDER BY created_at DESC')) {
+			const [ownerUserId] = queryParams as [string]
+			let groups = [...this.groups.values()].filter((group) => group.ownerUserId === ownerUserId)
+
+			if (sql.includes('AND deleted_at IS NULL')) {
+				groups = groups.filter((group) => group.deletedAt === null)
+			}
+
+			groups.sort((left, right) => right.createdAt!.localeCompare(left.createdAt!))
+
+			return {
+				rowCount: groups.length,
+				rows: groups.map((group) => this.buildGroupResponse(group)),
+			}
+		}
+
+		if (sql.includes('FROM group_members') && sql.includes('group_id = ANY($1)')) {
+			const [groupIds] = queryParams as [string[]]
+			const members = [...this.groupMembers.values()]
+				.filter((member) => member.deletedAt === null && groupIds.includes(member.groupId))
+				.sort((left, right) => left.createdAt!.localeCompare(right.createdAt!))
+				.map((member) => this.buildGroupMemberResponse(member))
+
+			return {
+				rowCount: members.length,
+				rows: members,
+			}
+		}
+
+		if (sql.includes('UPDATE groups') && sql.includes('SET name = $2') && sql.includes('RETURNING')) {
+			const [id, name] = queryParams as [string, string]
+			const group = this.groups.get(id)
+
+			if (!group || group.deletedAt !== null) {
+				return { rowCount: 0, rows: [] }
+			}
+
+			group.name = name.trim()
+			group.updatedAt = new Date().toISOString()
+
+			return {
+				rowCount: 1,
+				rows: [this.buildGroupResponse(group)],
+			}
+		}
+
+		if (sql.includes('UPDATE groups') && sql.includes('SET deleted_at = NOW()')) {
+			const [id] = queryParams as [string]
+			const group = this.groups.get(id)
+
+			if (!group || group.deletedAt !== null) {
+				return { rowCount: 0, rows: [] }
+			}
+
+			const timestamp = new Date().toISOString()
+			group.deletedAt = timestamp
+			group.updatedAt = timestamp
+
+			return { rowCount: 1, rows: [] }
+		}
+
 		if (sql.includes('UPDATE currencies') && sql.includes('SET name = $2')) {
 			const [code, name, symbol, decimalPlaces, isActive] = queryParams as [string, string, string, number, boolean]
 			const currency = this.currencies.get(code.toUpperCase())
@@ -1108,6 +1297,14 @@ export class FakeDatabase {
 	seedContact(contact: ContactRow) {
 		this.contacts.set(contact.id, this.normalizeSeedContact(contact))
 	}
+
+	seedGroup(group: GroupRow) {
+		this.groups.set(group.id, this.normalizeSeedGroup(group))
+	}
+
+	seedGroupMember(member: GroupMemberRow) {
+		this.groupMembers.set(member.id, this.normalizeSeedGroupMember(member))
+	}
 }
 
-export type { AccountRow, CategoryRow, ContactRow, CurrencyRow, UserRow }
+export type { AccountRow, CategoryRow, ContactRow, CurrencyRow, GroupMemberRow, GroupRow, UserRow }
