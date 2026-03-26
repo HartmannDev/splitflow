@@ -1,7 +1,9 @@
 import type { Database } from '../db/db.ts'
+import type { EmailTransporter } from '../plugins/nodemailer.ts'
 
 export type AppDependency = {
 	db: Database
+	emailTransporter: EmailTransporter
 	config: {
 		passwordPepper: string
 		sessionSecret: string
@@ -16,5 +18,6 @@ export type BuildAppOptions = {
 	passwordPepper: string
 	nodeEnv: NodeEnvTypes
 	database: Database
+	emailTransporter: EmailTransporter
 	logger?: boolean | object
 }
