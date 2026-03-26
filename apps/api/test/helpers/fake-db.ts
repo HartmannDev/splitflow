@@ -89,6 +89,16 @@ type GroupMemberRow = {
 	deletedAt?: string | null
 }
 
+type TagRow = {
+	id: string
+	userId: string
+	name: string
+	color: string
+	createdAt?: string
+	updatedAt?: string
+	deletedAt?: string | null
+}
+
 class FakePool {
 	private readonly sessions = new Map<string, SessionRow>()
 
@@ -155,6 +165,7 @@ export class FakeDatabase {
 	private readonly contacts = new Map<string, ContactRow>()
 	private readonly groups = new Map<string, GroupRow>()
 	private readonly groupMembers = new Map<string, GroupMemberRow>()
+	private readonly tags = new Map<string, TagRow>()
 
 	private buildUserResponse(user: UserRow) {
 		return {
@@ -362,6 +373,45 @@ export class FakeDatabase {
 			createdAt: member.createdAt,
 			updatedAt: member.updatedAt,
 			deletedAt: member.deletedAt,
+		}
+	}
+
+	private normalizeSeedTag(tag: TagRow): TagRow {
+		const timestamp = new Date().toISOString()
+
+		return {
+			...tag,
+			name: tag.name.trim(),
+			color: tag.color.trim(),
+			createdAt: tag.createdAt ?? timestamp,
+			updatedAt: tag.updatedAt ?? timestamp,
+			deletedAt: tag.deletedAt ?? null,
+		}
+	}
+
+	private buildTagResponse(tag: TagRow) {
+		return {
+			id: tag.id,
+			userId: tag.userId,
+			name: tag.name,
+			color: tag.color,
+			createdAt: tag.createdAt,
+			updatedAt: tag.updatedAt,
+			deletedAt: tag.deletedAt,
+		}
+	}
+
+	private assertTagNameUnique(nextTag: TagRow) {
+		const duplicated = [...this.tags.values()].some(
+			(tag) =>
+				tag.id !== nextTag.id &&
+				tag.userId === nextTag.userId &&
+				tag.deletedAt === null &&
+				tag.name.toLowerCase() === nextTag.name.toLowerCase(),
+		)
+
+		if (duplicated) {
+			throw { code: '23505' }
 		}
 	}
 
@@ -1221,6 +1271,97 @@ export class FakeDatabase {
 			return { rowCount: 1, rows: [] }
 		}
 
+		if (sql.includes('INSERT INTO tags')) {
+			const [id, userId, name, color] = queryParams as [string, string, string, string]
+			const tag = this.normalizeSeedTag({
+				id,
+				userId,
+				name,
+				color,
+			})
+
+			this.assertTagNameUnique(tag)
+			this.tags.set(id, tag)
+
+			return { rowCount: 1, rows: [] }
+		}
+
+		if (sql.includes('FROM tags') && sql.includes('WHERE id = $1') && sql.includes('user_id = $2')) {
+			const [id, userId] = queryParams as [string, string]
+			const tag = this.tags.get(id)
+
+			if (!tag || tag.userId !== userId) {
+				return { rowCount: 0, rows: [] }
+			}
+
+			if (sql.includes('AND deleted_at IS NULL') && tag.deletedAt !== null) {
+				return { rowCount: 0, rows: [] }
+			}
+
+			return {
+				rowCount: 1,
+				rows: [this.buildTagResponse(tag)],
+			}
+		}
+
+		if (sql.includes('FROM tags') && sql.includes('WHERE user_id = $1') && sql.includes('ORDER BY created_at DESC')) {
+			const [userId] = queryParams as [string]
+			let tags = [...this.tags.values()].filter((tag) => tag.userId === userId)
+
+			if (sql.includes('AND deleted_at IS NULL')) {
+				tags = tags.filter((tag) => tag.deletedAt === null)
+			}
+
+			tags.sort((left, right) => right.createdAt!.localeCompare(left.createdAt!))
+
+			return {
+				rowCount: tags.length,
+				rows: tags.map((tag) => this.buildTagResponse(tag)),
+			}
+		}
+
+		if (sql.includes('UPDATE tags') && sql.includes('SET name = $2') && sql.includes('RETURNING')) {
+			const [id, name, color] = queryParams as [string, string, string]
+			const tag = this.tags.get(id)
+
+			if (!tag || tag.deletedAt !== null) {
+				return { rowCount: 0, rows: [] }
+			}
+
+			const nextTag = this.normalizeSeedTag({
+				...tag,
+				name,
+				color,
+				createdAt: tag.createdAt,
+			})
+
+			this.assertTagNameUnique(nextTag)
+
+			tag.name = nextTag.name
+			tag.color = nextTag.color
+			tag.updatedAt = new Date().toISOString()
+
+			return {
+				rowCount: 1,
+				rows: [this.buildTagResponse(tag)],
+			}
+		}
+
+		if (sql.includes('UPDATE tags') && sql.includes('SET deleted_at = NOW()')) {
+			const [id] = queryParams as [string]
+			const tag = this.tags.get(id)
+
+			if (!tag || tag.deletedAt !== null) {
+				return { rowCount: 0, rows: [] }
+			}
+
+			const timestamp = new Date().toISOString()
+			tag.deletedAt = timestamp
+			tag.updatedAt = timestamp
+
+			return { rowCount: 1, rows: [] }
+		}
+
 		if (sql.includes('UPDATE currencies') && sql.includes('SET name = $2')) {
 			const [code, name, symbol, decimalPlaces, isActive] = queryParams as [string, string, string, number, boolean]
 			const currency = this.currencies.get(code.toUpperCase())
@@ -1305,6 +1446,10 @@ export class FakeDatabase {
 	seedGroupMember(member: GroupMemberRow) {
 		this.groupMembers.set(member.id, this.normalizeSeedGroupMember(member))
 	}
+
+	seedTag(tag: TagRow) {
+		this.tags.set(tag.id, this.normalizeSeedTag(tag))
+	}
 }
 
-export type { AccountRow, CategoryRow, ContactRow, CurrencyRow, GroupMemberRow, GroupRow, UserRow }
+export type { AccountRow, CategoryRow, ContactRow, CurrencyRow, GroupMemberRow, GroupRow, TagRow, UserRow }

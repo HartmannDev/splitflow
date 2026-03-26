@@ -19,6 +19,7 @@ import { categoriesRoute } from './modules/categories/route.ts'
 import { contactsRoute } from './modules/contacts/route.ts'
 import { currenciesRoute } from './modules/currencies/route.ts'
 import { groupsRoute } from './modules/groups/route.ts'
+import { tagsRoute } from './modules/tags/route.ts'
 import { UsersRoute } from './modules/users/route.ts'
 
 import type { AppDependency, BuildAppOptions } from './types/app.js'
@@ -97,6 +98,7 @@ export const buildApp = (options: BuildAppOptions): FastifyInstance => {
 	app.register(contactsRoute, appDeps)
 	app.register(currenciesRoute, appDeps)
 	app.register(groupsRoute, appDeps)
+	app.register(tagsRoute, appDeps)
 	app.register(UsersRoute, appDeps)
 
 	return app
