@@ -30,7 +30,28 @@
 		"enabled": true,
 		"actions": {
 			"source": {
-				"organizeImports": "on"
+				"organizeImports": {
+					"level": "on",
+					"options": {
+						"groups": [
+							{ "type": false, "source": ":NODE:" },
+							":BLANK_LINE:",
+							{ "type": true, "source": ":NODE:" },
+							":BLANK_LINE:",
+							{ "type": false, "source": ":PACKAGE:" },
+							":BLANK_LINE:",
+							{ "type": true, "source": ":PACKAGE:" },
+							":BLANK_LINE:",
+							{ "type": false, "source": ["@/**", "~/**", "#/**"] },
+							":BLANK_LINE:",
+							{ "type": true, "source": ["@/**", "~/**", "#/**"] },
+							":BLANK_LINE:",
+							{ "type": false, "source": ["./**", "../**"] },
+							":BLANK_LINE:",
+							{ "type": true, "source": ["./**", "../**"] }
+						]
+					}
+				}
 			}
 		}
 	}
