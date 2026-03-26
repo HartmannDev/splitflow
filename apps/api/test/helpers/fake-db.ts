@@ -33,6 +33,28 @@ type CategoryRow = {
 	deletedAt?: string | null
 }
 
+type CurrencyRow = {
+	code: string
+	name: string
+	symbol: string
+	decimalPlaces: number
+	isActive?: boolean
+}
+
+type AccountRow = {
+	id: string
+	userId: string
+	currencyCode: string
+	name: string
+	icon: string
+	color: string
+	initialValue: string
+	isArchived?: boolean
+	createdAt?: string
+	updatedAt?: string
+	deletedAt?: string | null
+}
+
 class FakePool {
 	private readonly sessions = new Map<string, SessionRow>()
 
@@ -94,6 +116,8 @@ export class FakeDatabase {
 	private readonly users = new Map<string, UserRow>()
 	private readonly verificationTokens = new Map<string, VerificationTokenRow>()
 	private readonly categories = new Map<string, CategoryRow>()
+	private readonly currencies = new Map<string, CurrencyRow>()
+	private readonly accounts = new Map<string, AccountRow>()
 
 	private buildUserResponse(user: UserRow) {
 		return {
@@ -166,6 +190,47 @@ export class FakeDatabase {
 
 		if (duplicated) {
 			throw { code: '23505' }
+		}
+	}
+
+	private buildAccountResponse(account: AccountRow) {
+		return {
+			id: account.id,
+			userId: account.userId,
+			currencyCode: account.currencyCode,
+			name: account.name,
+			icon: account.icon,
+			color: account.color,
+			initialValue: account.initialValue,
+			isArchived: account.isArchived,
+			createdAt: account.createdAt,
+			updatedAt: account.updatedAt,
+			deletedAt: account.deletedAt,
+		}
+	}
+
+	private normalizeSeedCurrency(currency: CurrencyRow): CurrencyRow {
+		return {
+			...currency,
+			code: currency.code.toUpperCase(),
+			isActive: currency.isActive ?? true,
+		}
+	}
+
+	private normalizeSeedAccount(account: AccountRow): AccountRow {
+		const timestamp = new Date().toISOString()
+
+		return {
+			...account,
+			currencyCode: account.currencyCode.toUpperCase(),
+			name: account.name.trim(),
+			icon: account.icon.trim(),
+			color: account.color.trim(),
+			initialValue: account.initialValue.trim(),
+			isArchived: account.isArchived ?? false,
+			createdAt: account.createdAt ?? timestamp,
+			updatedAt: account.updatedAt ?? timestamp,
+			deletedAt: account.deletedAt ?? null,
 		}
 	}
 
@@ -503,6 +568,16 @@ export class FakeDatabase {
 			return { rowCount: 1, rows: [] }
 		}
 
+		if (sql.includes('SELECT code') && sql.includes('FROM currencies') && sql.includes('AND is_active = true')) {
+			const [code] = queryParams as [string]
+			const currency = this.currencies.get(code.toUpperCase())
+
+			return {
+				rowCount: currency && currency.isActive ? 1 : 0,
+				rows: currency && currency.isActive ? [{ code: currency.code }] : [],
+			}
+		}
+
 		if (sql.includes('FROM categories') && sql.includes('WHERE id = $1') && sql.includes('is_default = true AND $2 = true')) {
 			const [id, isAdmin, userId] = queryParams as [string, boolean, string]
 			const category = this.categories.get(id)
@@ -607,6 +682,117 @@ export class FakeDatabase {
 			return { rowCount: 1, rows: [] }
 		}
 
+		if (sql.includes('INSERT INTO accounts')) {
+			const [id, userId, currencyCode, name, icon, color, initialValue] = queryParams as [
+				string,
+				string,
+				string,
+				string,
+				string,
+				string,
+				string,
+			]
+
+			const account = this.normalizeSeedAccount({
+				id,
+				userId,
+				currencyCode,
+				name,
+				icon,
+				color,
+				initialValue,
+			})
+
+			this.accounts.set(id, account)
+
+			return { rowCount: 1, rows: [] }
+		}
+
+		if (sql.includes('FROM accounts') && sql.includes('WHERE id = $1') && sql.includes('user_id = $2')) {
+			const [id, userId] = queryParams as [string, string]
+			const account = this.accounts.get(id)
+
+			if (!account || account.deletedAt !== null || account.userId !== userId) {
+				return { rowCount: 0, rows: [] }
+			}
+
+			return {
+				rowCount: 1,
+				rows: [this.buildAccountResponse(account)],
+			}
+		}
+
+		if (sql.includes('FROM accounts') && sql.includes('WHERE user_id = $1') && sql.includes('ORDER BY is_archived ASC')) {
+			const [userId, currencyCode] = queryParams as [string, string | undefined]
+			let accounts = [...this.accounts.values()].filter((account) => account.userId === userId && account.deletedAt === null)
+
+			if (sql.includes('AND is_archived = false')) {
+				accounts = accounts.filter((account) => !account.isArchived)
+			}
+
+			if (currencyCode) {
+				accounts = accounts.filter((account) => account.currencyCode === currencyCode.toUpperCase())
+			}
+
+			accounts.sort((left, right) => {
+				if (left.isArchived !== right.isArchived) {
+					return left.isArchived ? 1 : -1
+				}
+
+				return right.createdAt!.localeCompare(left.createdAt!)
+			})
+
+			return {
+				rowCount: accounts.length,
+				rows: accounts.map((account) => this.buildAccountResponse(account)),
+			}
+		}
+
+		if (sql.includes('UPDATE accounts') && sql.includes('SET currency_code = $2') && sql.includes('RETURNING')) {
+			const [id, currencyCode, name, icon, color, initialValue, isArchived] = queryParams as [
+				string,
+				string,
+				string,
+				string,
+				string,
+				string,
+				boolean,
+			]
+			const account = this.accounts.get(id)
+
+			if (!account || account.deletedAt !== null) {
+				return { rowCount: 0, rows: [] }
+			}
+
+			account.currencyCode = currencyCode.toUpperCase()
+			account.name = name.trim()
+			account.icon = icon.trim()
+			account.color = color.trim()
+			account.initialValue = initialValue.trim()
+			account.isArchived = isArchived
+			account.updatedAt = new Date().toISOString()
+
+			return {
+				rowCount: 1,
+				rows: [this.buildAccountResponse(account)],
+			}
+		}
+
+		if (sql.includes('UPDATE accounts') && sql.includes('SET deleted_at = NOW()')) {
+			const [id] = queryParams as [string]
+			const account = this.accounts.get(id)
+
+			if (!account || account.deletedAt !== null) {
+				return { rowCount: 0, rows: [] }
+			}
+
+			const timestamp = new Date().toISOString()
+			account.deletedAt = timestamp
+			account.updatedAt = timestamp
+
+			return { rowCount: 1, rows: [] }
+		}
+
 		throw new Error(`Unsupported database query: ${sql}`)
 	}
 
@@ -631,6 +817,15 @@ export class FakeDatabase {
 	seedCategory(category: CategoryRow) {
 		this.categories.set(category.id, this.normalizeSeedCategory(category))
 	}
+
+	seedCurrency(currency: CurrencyRow) {
+		const normalizedCurrency = this.normalizeSeedCurrency(currency)
+		this.currencies.set(normalizedCurrency.code, normalizedCurrency)
+	}
+
+	seedAccount(account: AccountRow) {
+		this.accounts.set(account.id, this.normalizeSeedAccount(account))
+	}
 }
 
-export type { CategoryRow, UserRow }
+export type { AccountRow, CategoryRow, CurrencyRow, UserRow }
