@@ -167,11 +167,15 @@ CREATE TABLE categories (
 	user_id uuid REFERENCES users(id),
 	type category_type NOT NULL,
 	name text NOT NULL,
+	icon text NOT NULL,
+	color text NOT NULL,
 	is_default boolean NOT NULL DEFAULT false,
 	created_at timestamptz NOT NULL DEFAULT now(),
 	updated_at timestamptz NOT NULL DEFAULT now(),
 	deleted_at timestamptz,
 	CONSTRAINT categories_name_not_blank CHECK (btrim(name) <> ''),
+	CONSTRAINT categories_icon_not_blank CHECK (btrim(icon) <> ''),
+	CONSTRAINT categories_color_not_blank CHECK (btrim(color) <> ''),
 	CONSTRAINT categories_ownership_rule CHECK (
 		(
 			is_default = true
