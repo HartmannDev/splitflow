@@ -99,6 +99,37 @@ type TagRow = {
 	deletedAt?: string | null
 }
 
+type TransactionRow = {
+	id: string
+	userId: string
+	type: 'income' | 'expense' | 'transfer'
+	status: 'pending' | 'done' | 'cancelled'
+	amount: string
+	description: string
+	notes?: string | null
+	transactionDate: string
+	accountId: string
+	categoryId?: string | null
+	recurringTransactionId?: string | null
+	recurringVersion?: number | null
+	transferPairId?: string | null
+	transferDirection?: 'out' | 'in' | null
+	isFromShared?: boolean
+	sourceSharedTransactionParticipantId?: string | null
+	createdAt?: string
+	updatedAt?: string
+	deletedAt?: string | null
+}
+
+type TransactionTagRow = {
+	id: string
+	transactionId: string
+	tagId: string
+	createdAt?: string
+	updatedAt?: string
+	deletedAt?: string | null
+}
+
 class FakePool {
 	private readonly sessions = new Map<string, SessionRow>()
 
@@ -166,6 +197,8 @@ export class FakeDatabase {
 	private readonly groups = new Map<string, GroupRow>()
 	private readonly groupMembers = new Map<string, GroupMemberRow>()
 	private readonly tags = new Map<string, TagRow>()
+	private readonly transactions = new Map<string, TransactionRow>()
+	private readonly transactionTags = new Map<string, TransactionTagRow>()
 
 	private buildUserResponse(user: UserRow) {
 		return {
@@ -412,6 +445,62 @@ export class FakeDatabase {
 
 		if (duplicated) {
 			throw { code: '23505' }
+		}
+	}
+
+	private normalizeSeedTransaction(transaction: TransactionRow): TransactionRow {
+		const timestamp = new Date().toISOString()
+
+		return {
+			...transaction,
+			amount: transaction.amount.trim(),
+			description: transaction.description.trim(),
+			notes: transaction.notes ?? null,
+			categoryId: transaction.categoryId ?? null,
+			recurringTransactionId: transaction.recurringTransactionId ?? null,
+			recurringVersion: transaction.recurringVersion ?? null,
+			transferPairId: transaction.transferPairId ?? null,
+			transferDirection: transaction.transferDirection ?? null,
+			isFromShared: transaction.isFromShared ?? false,
+			sourceSharedTransactionParticipantId: transaction.sourceSharedTransactionParticipantId ?? null,
+			createdAt: transaction.createdAt ?? timestamp,
+			updatedAt: transaction.updatedAt ?? timestamp,
+			deletedAt: transaction.deletedAt ?? null,
+		}
+	}
+
+	private normalizeSeedTransactionTag(transactionTag: TransactionTagRow): TransactionTagRow {
+		const timestamp = new Date().toISOString()
+
+		return {
+			...transactionTag,
+			createdAt: transactionTag.createdAt ?? timestamp,
+			updatedAt: transactionTag.updatedAt ?? timestamp,
+			deletedAt: transactionTag.deletedAt ?? null,
+		}
+	}
+
+	private buildTransactionResponse(transaction: TransactionRow) {
+		return {
+			id: transaction.id,
+			userId: transaction.userId,
+			type: transaction.type,
+			status: transaction.status,
+			amount: transaction.amount,
+			description: transaction.description,
+			notes: transaction.notes ?? null,
+			transactionDate: transaction.transactionDate,
+			accountId: transaction.accountId,
+			categoryId: transaction.categoryId ?? null,
+			recurringTransactionId: transaction.recurringTransactionId ?? null,
+			recurringVersion: transaction.recurringVersion ?? null,
+			transferPairId: transaction.transferPairId ?? null,
+			transferDirection: transaction.transferDirection ?? null,
+			isFromShared: transaction.isFromShared ?? false,
+			sourceSharedTransactionParticipantId: transaction.sourceSharedTransactionParticipantId ?? null,
+			createdAt: transaction.createdAt,
+			updatedAt: transaction.updatedAt,
+			deletedAt: transaction.deletedAt,
 		}
 	}
 
@@ -1320,6 +1409,18 @@ export class FakeDatabase {
 			}
 		}
 
+		if (sql.includes('SELECT id') && sql.includes('FROM tags') && sql.includes('id = ANY($2)')) {
+			const [userId, tagIds] = queryParams as [string, string[]]
+			const rows = [...this.tags.values()]
+				.filter((tag) => tag.userId === userId && tag.deletedAt === null && tagIds.includes(tag.id))
+				.map((tag) => ({ id: tag.id }))
+
+			return {
+				rowCount: rows.length,
+				rows,
+			}
+		}
+
 		if (sql.includes('UPDATE tags') && sql.includes('SET name = $2') && sql.includes('RETURNING')) {
 			const [id, name, color] = queryParams as [string, string, string]
 			const tag = this.tags.get(id)
@@ -1359,6 +1460,204 @@ export class FakeDatabase {
 			tag.deletedAt = timestamp
 			tag.updatedAt = timestamp
 
+			return { rowCount: 1, rows: [] }
+		}
+
+		if (sql.includes('FROM accounts') && sql.includes('currency_code as "currencyCode"')) {
+			const [id, userId] = queryParams as [string, string]
+			const account = this.accounts.get(id)
+
+			if (!account || account.userId !== userId || account.deletedAt !== null) {
+				return { rowCount: 0, rows: [] }
+			}
+
+			return {
+				rowCount: 1,
+				rows: [{ id: account.id, currencyCode: account.currencyCode }],
+			}
+		}
+
+		if (sql.includes('FROM categories') && sql.includes('is_default = true') && sql.includes('OR (user_id = $2')) {
+			const [id, userId] = queryParams as [string, string]
+			const category = this.categories.get(id)
+
+			if (!category || category.deletedAt !== null) {
+				return { rowCount: 0, rows: [] }
+			}
+
+			const allowed = category.isDefault || (!category.isDefault && category.userId === userId)
+			return {
+				rowCount: allowed ? 1 : 0,
+				rows: allowed ? [{ id: category.id }] : [],
+			}
+		}
+
+		if (sql.includes('INSERT INTO transactions')) {
+			const [id, userId, type, status, amount, description, notes, transactionDate, accountId, categoryId, transferPairId, transferDirection] =
+				queryParams as [string, string, TransactionRow['type'], TransactionRow['status'], string, string, string | null, string, string, string | null, string | null, TransactionRow['transferDirection']]
+
+			const transaction = this.normalizeSeedTransaction({
+				id,
+				userId,
+				type,
+				status,
+				amount,
+				description,
+				notes,
+				transactionDate,
+				accountId,
+				categoryId,
+				transferPairId,
+				transferDirection,
+			})
+
+			this.transactions.set(id, transaction)
+			return { rowCount: 1, rows: [] }
+		}
+
+		if (sql.includes('INSERT INTO transaction_tags')) {
+			const [id, transactionId, tagId] = queryParams as [string, string, string]
+			this.transactionTags.set(
+				id,
+				this.normalizeSeedTransactionTag({
+					id,
+					transactionId,
+					tagId,
+				}),
+			)
+
+			return { rowCount: 1, rows: [] }
+		}
+
+		if (sql.includes('FROM transaction_tags') && sql.includes('transaction_id = ANY($1)')) {
+			const [transactionIds] = queryParams as [string[]]
+			const rows = [...this.transactionTags.values()]
+				.filter((transactionTag) => transactionTag.deletedAt === null && transactionIds.includes(transactionTag.transactionId))
+				.sort((left, right) => left.createdAt!.localeCompare(right.createdAt!))
+				.map((transactionTag) => ({
+					transactionId: transactionTag.transactionId,
+					tagId: transactionTag.tagId,
+				}))
+
+			return {
+				rowCount: rows.length,
+				rows,
+			}
+		}
+
+		if (sql.includes('FROM transactions') && sql.includes('WHERE id = $1') && sql.includes('user_id = $2')) {
+			const [id, userId] = queryParams as [string, string]
+			const transaction = this.transactions.get(id)
+
+			if (!transaction || transaction.userId !== userId) {
+				return { rowCount: 0, rows: [] }
+			}
+
+			if (sql.includes('AND deleted_at IS NULL') && transaction.deletedAt !== null) {
+				return { rowCount: 0, rows: [] }
+			}
+
+			return {
+				rowCount: 1,
+				rows: [this.buildTransactionResponse(transaction)],
+			}
+		}
+
+		if (sql.includes('FROM transactions') && sql.includes('WHERE user_id = $1') && sql.includes('ORDER BY transaction_date DESC')) {
+			const [userId] = queryParams as [string]
+			let transactions = [...this.transactions.values()].filter((transaction) => transaction.userId === userId)
+
+			if (sql.includes('AND deleted_at IS NULL')) {
+				transactions = transactions.filter((transaction) => transaction.deletedAt === null)
+			}
+
+			transactions.sort((left, right) => {
+				const dateCompare = right.transactionDate.localeCompare(left.transactionDate)
+				if (dateCompare !== 0) {
+					return dateCompare
+				}
+
+				return right.createdAt!.localeCompare(left.createdAt!)
+			})
+
+			return {
+				rowCount: transactions.length,
+				rows: transactions.map((transaction) => this.buildTransactionResponse(transaction)),
+			}
+		}
+
+		if (sql.includes('UPDATE transaction_tags') && sql.includes('WHERE transaction_id = $1')) {
+			const [transactionId] = queryParams as [string]
+			let count = 0
+
+			for (const transactionTag of this.transactionTags.values()) {
+				if (transactionTag.transactionId === transactionId && transactionTag.deletedAt === null) {
+					transactionTag.deletedAt = new Date().toISOString()
+					transactionTag.updatedAt = new Date().toISOString()
+					count += 1
+				}
+			}
+
+			return { rowCount: count, rows: [] }
+		}
+
+		if (sql.includes('UPDATE transactions') && sql.includes('SET status = $2') && sql.includes('RETURNING')) {
+			const [id, status, amount, description, notes, transactionDate, accountId, categoryId] = queryParams as [
+				string,
+				TransactionRow['status'],
+				string,
+				string,
+				string | null,
+				string,
+				string,
+				string | null,
+			]
+			const transaction = this.transactions.get(id)
+
+			if (!transaction || transaction.deletedAt !== null) {
+				return { rowCount: 0, rows: [] }
+			}
+
+			transaction.status = status
+			transaction.amount = amount.trim()
+			transaction.description = description.trim()
+			transaction.notes = notes
+			transaction.transactionDate = transactionDate
+			transaction.accountId = accountId
+			transaction.categoryId = categoryId
+			transaction.updatedAt = new Date().toISOString()
+
+			return {
+				rowCount: 1,
+				rows: [this.buildTransactionResponse(transaction)],
+			}
+		}
+
+		if (sql.includes('UPDATE transactions') && sql.includes('transfer_pair_id = $2')) {
+			const [userId, transferPairId] = queryParams as [string, string]
+			let count = 0
+
+			for (const transaction of this.transactions.values()) {
+				if (transaction.userId === userId && transaction.transferPairId === transferPairId && transaction.deletedAt === null) {
+					transaction.deletedAt = new Date().toISOString()
+					transaction.updatedAt = new Date().toISOString()
+					count += 1
+				}
+			}
+
+			return { rowCount: count, rows: [] }
+		}
+
+		if (sql.includes('UPDATE transactions') && sql.includes('SET deleted_at = NOW()')) {
+			const [id] = queryParams as [string]
+			const transaction = this.transactions.get(id)
+
+			if (!transaction || transaction.deletedAt !== null) {
+				return { rowCount: 0, rows: [] }
+			}
+
+			transaction.deletedAt = new Date().toISOString()
+			transaction.updatedAt = new Date().toISOString()
 			return { rowCount: 1, rows: [] }
 		}
 
@@ -1450,6 +1749,14 @@ export class FakeDatabase {
 	seedTag(tag: TagRow) {
 		this.tags.set(tag.id, this.normalizeSeedTag(tag))
 	}
+
+	seedTransaction(transaction: TransactionRow) {
+		this.transactions.set(transaction.id, this.normalizeSeedTransaction(transaction))
+	}
+
+	seedTransactionTag(transactionTag: TransactionTagRow) {
+		this.transactionTags.set(transactionTag.id, this.normalizeSeedTransactionTag(transactionTag))
+	}
 }
 
-export type { AccountRow, CategoryRow, ContactRow, CurrencyRow, GroupMemberRow, GroupRow, TagRow, UserRow }
+export type { AccountRow, CategoryRow, ContactRow, CurrencyRow, GroupMemberRow, GroupRow, TagRow, TransactionRow, TransactionTagRow, UserRow }
