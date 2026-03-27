@@ -272,13 +272,63 @@ export const buildTransactionController = (deps: AppDependency) => {
 
 	const getTransactions = async (req: FastifyRequest, res: FastifyReply) => {
 		const sessionUser = req.session.user!
-		const { includeDeleted = false } = req.query as GetTransactionsQueryType
+		const { includeDeleted = false, from, to, accountId, type, status, categoryId, tagId } =
+			req.query as GetTransactionsQueryType
+		const params: unknown[] = [sessionUser.userId]
+		const conditions = ['user_id = $1']
+
+		if (!includeDeleted) {
+			conditions.push('deleted_at IS NULL')
+		}
+
+		if (from) {
+			params.push(from)
+			conditions.push(`transaction_date >= $${params.length}`)
+		}
+
+		if (to) {
+			params.push(to)
+			conditions.push(`transaction_date <= $${params.length}`)
+		}
+
+		if (accountId) {
+			params.push(accountId)
+			conditions.push(`account_id = $${params.length}`)
+		}
+
+		if (type) {
+			params.push(type)
+			conditions.push(`type = $${params.length}`)
+		}
+
+		if (status) {
+			params.push(status)
+			conditions.push(`status = $${params.length}`)
+		}
+
+		if (categoryId) {
+			params.push(categoryId)
+			conditions.push(`category_id = $${params.length}`)
+		}
+
+		if (tagId) {
+			params.push(tagId)
+			conditions.push(
+				`EXISTS (
+					SELECT 1
+					FROM transaction_tags
+					WHERE transaction_id = transactions.id
+						AND tag_id = $${params.length}
+						AND deleted_at IS NULL
+				)`,
+			)
+		}
+
 		const payload = await db.query(
 			`${transactionSelectSql}
-			WHERE user_id = $1
-				${includeDeleted ? '' : 'AND deleted_at IS NULL'}
+			WHERE ${conditions.join('\n\t\t\t\tAND ')}
 			ORDER BY transaction_date DESC, created_at DESC`,
-			[sessionUser.userId],
+			params,
 		)
 
 		const transactions = await hydrateTransactions(payload.rows as TransactionRow[])

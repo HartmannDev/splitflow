@@ -176,6 +176,83 @@ describe('transactions integration', () => {
 		])
 	})
 
+	it('filters transactions by period, account, type, status, category, and tag', async () => {
+		await seedSessionUsers()
+		seedTransactionDependencies()
+
+		seedTransaction({
+			id: '60000000-0000-4000-8000-000000000050',
+			userId,
+			type: 'expense',
+			status: 'pending',
+			amount: '45',
+			description: 'Groceries',
+			transactionDate: '2026-03-10T10:00:00.000Z',
+			accountId: '60000000-0000-4000-8000-000000000001',
+			categoryId: '60000000-0000-4000-8000-000000000010',
+		})
+		seedTransactionTag({
+			id: '61000000-0000-4000-8000-000000000010',
+			transactionId: '60000000-0000-4000-8000-000000000050',
+			tagId: '60000000-0000-4000-8000-000000000020',
+		})
+
+		seedTransaction({
+			id: '60000000-0000-4000-8000-000000000051',
+			userId,
+			type: 'expense',
+			status: 'done',
+			amount: '60',
+			description: 'Dinner',
+			transactionDate: '2026-03-18T20:00:00.000Z',
+			accountId: '60000000-0000-4000-8000-000000000001',
+			categoryId: '60000000-0000-4000-8000-000000000010',
+		})
+		seedTransactionTag({
+			id: '61000000-0000-4000-8000-000000000011',
+			transactionId: '60000000-0000-4000-8000-000000000051',
+			tagId: '60000000-0000-4000-8000-000000000021',
+		})
+
+		seedTransaction({
+			id: '60000000-0000-4000-8000-000000000052',
+			userId,
+			type: 'income',
+			status: 'done',
+			amount: '5000',
+			description: 'Salary',
+			transactionDate: '2026-03-12T09:00:00.000Z',
+			accountId: '60000000-0000-4000-8000-000000000002',
+			categoryId: '60000000-0000-4000-8000-000000000011',
+		})
+		seedTransactionTag({
+			id: '61000000-0000-4000-8000-000000000012',
+			transactionId: '60000000-0000-4000-8000-000000000052',
+			tagId: '60000000-0000-4000-8000-000000000020',
+		})
+
+		const { cookie } = await login('user@example.com', validPassword)
+		const response = await app.inject({
+			method: 'GET',
+			url:
+				'/transactions?from=2026-03-01T00:00:00.000Z&to=2026-03-15T23:59:59.999Z&accountId=60000000-0000-4000-8000-000000000001&type=expense&status=pending&categoryId=60000000-0000-4000-8000-000000000010&tagId=60000000-0000-4000-8000-000000000020',
+			headers: { cookie },
+		})
+
+		expect(response.statusCode).toBe(200)
+		expect(response.json()).toEqual([
+			expect.objectContaining({
+				id: '60000000-0000-4000-8000-000000000050',
+				description: 'Groceries',
+				type: 'expense',
+				status: 'pending',
+				accountId: '60000000-0000-4000-8000-000000000001',
+				categoryId: '60000000-0000-4000-8000-000000000010',
+				tagIds: ['60000000-0000-4000-8000-000000000020'],
+			}),
+		])
+	})
+
 	it('validates account, category, and tag ownership', async () => {
 		await seedSessionUsers()
 		seedTransactionDependencies()

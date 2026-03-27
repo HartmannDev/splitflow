@@ -130,6 +130,27 @@ type TransactionTagRow = {
 	deletedAt?: string | null
 }
 
+type RecurringTransactionRow = {
+	id: string
+	userId: string
+	type: 'income' | 'expense'
+	mode: 'subscription' | 'installment'
+	frequency: 'daily' | 'weekly' | 'fortnightly' | 'monthly' | 'quarterly' | 'semiannually' | 'annually'
+	templateDescription: string
+	templateAmount: string
+	templateNotes?: string | null
+	templateCategoryId?: string | null
+	templateAccountId: string
+	startsOn: string
+	nextGenerationDate: string
+	totalOccurrences?: number | null
+	currentVersion?: number
+	isActive?: boolean
+	createdAt?: string
+	updatedAt?: string
+	deletedAt?: string | null
+}
+
 class FakePool {
 	private readonly sessions = new Map<string, SessionRow>()
 
@@ -199,6 +220,7 @@ export class FakeDatabase {
 	private readonly tags = new Map<string, TagRow>()
 	private readonly transactions = new Map<string, TransactionRow>()
 	private readonly transactionTags = new Map<string, TransactionTagRow>()
+	private readonly recurringTransactions = new Map<string, RecurringTransactionRow>()
 
 	private buildUserResponse(user: UserRow) {
 		return {
@@ -501,6 +523,47 @@ export class FakeDatabase {
 			createdAt: transaction.createdAt,
 			updatedAt: transaction.updatedAt,
 			deletedAt: transaction.deletedAt,
+		}
+	}
+
+	private normalizeSeedRecurringTransaction(recurringTransaction: RecurringTransactionRow): RecurringTransactionRow {
+		const timestamp = new Date().toISOString()
+
+		return {
+			...recurringTransaction,
+			templateDescription: recurringTransaction.templateDescription.trim(),
+			templateAmount: recurringTransaction.templateAmount.trim(),
+			templateNotes: recurringTransaction.templateNotes ?? null,
+			templateCategoryId: recurringTransaction.templateCategoryId ?? null,
+			totalOccurrences: recurringTransaction.totalOccurrences ?? null,
+			currentVersion: recurringTransaction.currentVersion ?? 1,
+			isActive: recurringTransaction.isActive ?? true,
+			createdAt: recurringTransaction.createdAt ?? timestamp,
+			updatedAt: recurringTransaction.updatedAt ?? timestamp,
+			deletedAt: recurringTransaction.deletedAt ?? null,
+		}
+	}
+
+	private buildRecurringTransactionResponse(recurringTransaction: RecurringTransactionRow) {
+		return {
+			id: recurringTransaction.id,
+			userId: recurringTransaction.userId,
+			type: recurringTransaction.type,
+			mode: recurringTransaction.mode,
+			frequency: recurringTransaction.frequency,
+			templateDescription: recurringTransaction.templateDescription,
+			templateAmount: recurringTransaction.templateAmount,
+			templateNotes: recurringTransaction.templateNotes ?? null,
+			templateCategoryId: recurringTransaction.templateCategoryId ?? null,
+			templateAccountId: recurringTransaction.templateAccountId,
+			startsOn: recurringTransaction.startsOn,
+			nextGenerationDate: recurringTransaction.nextGenerationDate,
+			totalOccurrences: recurringTransaction.totalOccurrences ?? null,
+			currentVersion: recurringTransaction.currentVersion ?? 1,
+			isActive: recurringTransaction.isActive ?? true,
+			createdAt: recurringTransaction.createdAt,
+			updatedAt: recurringTransaction.updatedAt,
+			deletedAt: recurringTransaction.deletedAt,
 		}
 	}
 
@@ -1477,15 +1540,31 @@ export class FakeDatabase {
 			}
 		}
 
-		if (sql.includes('FROM categories') && sql.includes('is_default = true') && sql.includes('OR (user_id = $2')) {
+		if (sql.includes('SELECT id') && sql.includes('FROM accounts') && sql.includes('user_id = $2')) {
 			const [id, userId] = queryParams as [string, string]
+			const account = this.accounts.get(id)
+
+			return {
+				rowCount: account && account.userId === userId && account.deletedAt === null ? 1 : 0,
+				rows:
+					account && account.userId === userId && account.deletedAt === null
+						? [{ id: account.id }]
+						: [],
+			}
+		}
+
+		if (sql.includes('FROM categories') && sql.includes('is_default = true') && sql.includes('deleted_at IS NULL')) {
+			const [id, secondParam, thirdParam] = queryParams as [string, string, string | undefined]
+			const userId = thirdParam ?? secondParam
+			const type = thirdParam ? secondParam : undefined
 			const category = this.categories.get(id)
 
 			if (!category || category.deletedAt !== null) {
 				return { rowCount: 0, rows: [] }
 			}
 
-			const allowed = category.isDefault || (!category.isDefault && category.userId === userId)
+			const allowedType = type ? category.type === type : true
+			const allowed = allowedType && (category.isDefault || (!category.isDefault && category.userId === userId))
 			return {
 				rowCount: allowed ? 1 : 0,
 				rows: allowed ? [{ id: category.id }] : [],
@@ -1493,25 +1572,50 @@ export class FakeDatabase {
 		}
 
 		if (sql.includes('INSERT INTO transactions')) {
-			const [id, userId, type, status, amount, description, notes, transactionDate, accountId, categoryId, transferPairId, transferDirection] =
-				queryParams as [string, string, TransactionRow['type'], TransactionRow['status'], string, string, string | null, string, string, string | null, string | null, TransactionRow['transferDirection']]
+			let transactionId: string
+			let transaction: TransactionRow
 
-			const transaction = this.normalizeSeedTransaction({
-				id,
-				userId,
-				type,
-				status,
-				amount,
-				description,
-				notes,
-				transactionDate,
-				accountId,
-				categoryId,
-				transferPairId,
-				transferDirection,
-			})
+			if (sql.includes('recurring_transaction_id')) {
+				const [id, userId, type, amount, description, notes, transactionDate, accountId, categoryId, recurringTransactionId, recurringVersion] =
+					queryParams as [string, string, TransactionRow['type'], string, string, string | null, string, string, string | null, string, number]
+				transactionId = id
 
-			this.transactions.set(id, transaction)
+				transaction = this.normalizeSeedTransaction({
+					id,
+					userId,
+					type,
+					status: 'pending',
+					amount,
+					description,
+					notes,
+					transactionDate,
+					accountId,
+					categoryId,
+					recurringTransactionId,
+					recurringVersion,
+				})
+			} else {
+				const [id, userId, type, status, amount, description, notes, transactionDate, accountId, categoryId, transferPairId, transferDirection] =
+					queryParams as [string, string, TransactionRow['type'], TransactionRow['status'], string, string, string | null, string, string, string | null, string | null, TransactionRow['transferDirection']]
+				transactionId = id
+
+				transaction = this.normalizeSeedTransaction({
+					id,
+					userId,
+					type,
+					status,
+					amount,
+					description,
+					notes,
+					transactionDate,
+					accountId,
+					categoryId,
+					transferPairId,
+					transferDirection,
+				})
+			}
+
+			this.transactions.set(transactionId, transaction)
 			return { rowCount: 1, rows: [] }
 		}
 
@@ -1564,11 +1668,58 @@ export class FakeDatabase {
 		}
 
 		if (sql.includes('FROM transactions') && sql.includes('WHERE user_id = $1') && sql.includes('ORDER BY transaction_date DESC')) {
-			const [userId] = queryParams as [string]
+			const [userId, ...filterParams] = queryParams as [string, ...unknown[]]
 			let transactions = [...this.transactions.values()].filter((transaction) => transaction.userId === userId)
+			let currentParamIndex = 2
 
 			if (sql.includes('AND deleted_at IS NULL')) {
 				transactions = transactions.filter((transaction) => transaction.deletedAt === null)
+			}
+
+			if (sql.includes(`transaction_date >= $${currentParamIndex}`)) {
+				const from = filterParams[currentParamIndex - 2] as string
+				transactions = transactions.filter((transaction) => transaction.transactionDate >= from)
+				currentParamIndex += 1
+			}
+
+			if (sql.includes(`transaction_date <= $${currentParamIndex}`)) {
+				const to = filterParams[currentParamIndex - 2] as string
+				transactions = transactions.filter((transaction) => transaction.transactionDate <= to)
+				currentParamIndex += 1
+			}
+
+			if (sql.includes(`account_id = $${currentParamIndex}`)) {
+				const accountId = filterParams[currentParamIndex - 2] as string
+				transactions = transactions.filter((transaction) => transaction.accountId === accountId)
+				currentParamIndex += 1
+			}
+
+			if (sql.includes(`type = $${currentParamIndex}`)) {
+				const type = filterParams[currentParamIndex - 2] as TransactionRow['type']
+				transactions = transactions.filter((transaction) => transaction.type === type)
+				currentParamIndex += 1
+			}
+
+			if (sql.includes(`status = $${currentParamIndex}`)) {
+				const status = filterParams[currentParamIndex - 2] as TransactionRow['status']
+				transactions = transactions.filter((transaction) => transaction.status === status)
+				currentParamIndex += 1
+			}
+
+			if (sql.includes(`category_id = $${currentParamIndex}`)) {
+				const categoryId = filterParams[currentParamIndex - 2] as string
+				transactions = transactions.filter((transaction) => transaction.categoryId === categoryId)
+				currentParamIndex += 1
+			}
+
+			if (sql.includes(`tag_id = $${currentParamIndex}`)) {
+				const tagId = filterParams[currentParamIndex - 2] as string
+				const transactionIdsWithTag = new Set(
+					[...this.transactionTags.values()]
+						.filter((transactionTag) => transactionTag.deletedAt === null && transactionTag.tagId === tagId)
+						.map((transactionTag) => transactionTag.transactionId),
+				)
+				transactions = transactions.filter((transaction) => transactionIdsWithTag.has(transaction.id))
 			}
 
 			transactions.sort((left, right) => {
@@ -1658,6 +1809,249 @@ export class FakeDatabase {
 
 			transaction.deletedAt = new Date().toISOString()
 			transaction.updatedAt = new Date().toISOString()
+			return { rowCount: 1, rows: [] }
+		}
+
+		if (sql.includes('SELECT COUNT(*)::int as "count"') && sql.includes('FROM transactions')) {
+			const [recurringTransactionId] = queryParams as [string]
+			const count = [...this.transactions.values()].filter(
+				(transaction) =>
+					transaction.recurringTransactionId === recurringTransactionId && transaction.deletedAt === null,
+			).length
+
+			return {
+				rowCount: 1,
+				rows: [{ count }],
+			}
+		}
+
+		if (sql.includes('INSERT INTO recurring_transactions')) {
+			const [
+				id,
+				userId,
+				type,
+				mode,
+				frequency,
+				templateDescription,
+				templateAmount,
+				templateNotes,
+				templateCategoryId,
+				templateAccountId,
+				startsOn,
+				totalOccurrences,
+			] = queryParams as [
+				string,
+				string,
+				RecurringTransactionRow['type'],
+				RecurringTransactionRow['mode'],
+				RecurringTransactionRow['frequency'],
+				string,
+				string,
+				string | null,
+				string | null,
+				string,
+				string,
+				number | null,
+			]
+
+			this.recurringTransactions.set(
+				id,
+				this.normalizeSeedRecurringTransaction({
+					id,
+					userId,
+					type,
+					mode,
+					frequency,
+					templateDescription,
+					templateAmount,
+					templateNotes,
+					templateCategoryId,
+					templateAccountId,
+					startsOn,
+					nextGenerationDate: startsOn,
+					totalOccurrences,
+				}),
+			)
+
+			return { rowCount: 1, rows: [] }
+		}
+
+		if (sql.includes('FROM recurring_transactions') && sql.includes('WHERE id = $1') && sql.includes('user_id = $2')) {
+			const [id, userId] = queryParams as [string, string]
+			const recurringTransaction = this.recurringTransactions.get(id)
+
+			if (!recurringTransaction || recurringTransaction.userId !== userId) {
+				return { rowCount: 0, rows: [] }
+			}
+
+			if (sql.includes('AND deleted_at IS NULL') && recurringTransaction.deletedAt !== null) {
+				return { rowCount: 0, rows: [] }
+			}
+
+			return {
+				rowCount: 1,
+				rows: [this.buildRecurringTransactionResponse(recurringTransaction)],
+			}
+		}
+
+		if (
+			sql.includes('FROM recurring_transactions') &&
+			sql.includes('WHERE user_id = $1') &&
+			sql.includes('ORDER BY next_generation_date ASC, created_at ASC')
+		) {
+			const [userId, throughDate] = queryParams as [string, string]
+			let recurringTransactions = [...this.recurringTransactions.values()].filter(
+				(recurringTransaction) => recurringTransaction.userId === userId,
+			)
+
+			if (sql.includes('AND deleted_at IS NULL')) {
+				recurringTransactions = recurringTransactions.filter(
+					(recurringTransaction) => recurringTransaction.deletedAt === null,
+				)
+			}
+
+			if (sql.includes('AND is_active = true')) {
+				recurringTransactions = recurringTransactions.filter((recurringTransaction) => recurringTransaction.isActive)
+			}
+
+			if (sql.includes('AND next_generation_date <= $2')) {
+				recurringTransactions = recurringTransactions.filter(
+					(recurringTransaction) => recurringTransaction.nextGenerationDate <= throughDate,
+				)
+			}
+
+			recurringTransactions.sort((left, right) => {
+				const nextGenerationDateCompare = left.nextGenerationDate.localeCompare(right.nextGenerationDate)
+				if (nextGenerationDateCompare !== 0) {
+					return nextGenerationDateCompare
+				}
+
+				return left.createdAt!.localeCompare(right.createdAt!)
+			})
+
+			return {
+				rowCount: recurringTransactions.length,
+				rows: recurringTransactions.map((recurringTransaction) =>
+					this.buildRecurringTransactionResponse(recurringTransaction),
+				),
+			}
+		}
+
+		if (sql.includes('FROM recurring_transactions') && sql.includes('WHERE user_id = $1') && sql.includes('ORDER BY created_at DESC')) {
+			const [userId] = queryParams as [string]
+			let recurringTransactions = [...this.recurringTransactions.values()].filter((recurringTransaction) => recurringTransaction.userId === userId)
+
+			if (sql.includes('AND deleted_at IS NULL')) {
+				recurringTransactions = recurringTransactions.filter((recurringTransaction) => recurringTransaction.deletedAt === null)
+			}
+
+			if (sql.includes('AND is_active = true')) {
+				recurringTransactions = recurringTransactions.filter((recurringTransaction) => recurringTransaction.isActive)
+			}
+			recurringTransactions.sort((left, right) => right.createdAt!.localeCompare(left.createdAt!))
+
+			return {
+				rowCount: recurringTransactions.length,
+				rows: recurringTransactions.map((recurringTransaction) => this.buildRecurringTransactionResponse(recurringTransaction)),
+			}
+		}
+
+		if (sql.includes('UPDATE recurring_transactions') && sql.includes('current_version = current_version + 1')) {
+			const [
+				id,
+				type,
+				mode,
+				frequency,
+				templateDescription,
+				templateAmount,
+				templateNotes,
+				templateCategoryId,
+				templateAccountId,
+				startsOn,
+				nextGenerationDate,
+				totalOccurrences,
+				isActive,
+			] = queryParams as [
+				string,
+				RecurringTransactionRow['type'],
+				RecurringTransactionRow['mode'],
+				RecurringTransactionRow['frequency'],
+				string,
+				string,
+				string | null,
+				string | null,
+				string,
+				string,
+				string,
+				number | null,
+				boolean,
+			]
+			const recurringTransaction = this.recurringTransactions.get(id)
+
+			if (!recurringTransaction || recurringTransaction.deletedAt !== null) {
+				return { rowCount: 0, rows: [] }
+			}
+
+			recurringTransaction.type = type
+			recurringTransaction.mode = mode
+			recurringTransaction.frequency = frequency
+			recurringTransaction.templateDescription = templateDescription.trim()
+			recurringTransaction.templateAmount = templateAmount.trim()
+			recurringTransaction.templateNotes = templateNotes
+			recurringTransaction.templateCategoryId = templateCategoryId
+			recurringTransaction.templateAccountId = templateAccountId
+			recurringTransaction.startsOn = startsOn
+			recurringTransaction.nextGenerationDate = nextGenerationDate
+			recurringTransaction.totalOccurrences = totalOccurrences
+			recurringTransaction.currentVersion = (recurringTransaction.currentVersion ?? 1) + 1
+			recurringTransaction.isActive = isActive
+			recurringTransaction.updatedAt = new Date().toISOString()
+
+			return {
+				rowCount: 1,
+				rows: [this.buildRecurringTransactionResponse(recurringTransaction)],
+			}
+		}
+
+		if (sql.includes('UPDATE recurring_transactions') && sql.includes('SET next_generation_date = $2')) {
+			const [id, nextGenerationDate, isActive] = queryParams as [string, string, boolean]
+			const recurringTransaction = this.recurringTransactions.get(id)
+
+			if (!recurringTransaction) {
+				return { rowCount: 0, rows: [] }
+			}
+
+			recurringTransaction.nextGenerationDate = nextGenerationDate
+			recurringTransaction.isActive = isActive
+			recurringTransaction.updatedAt = new Date().toISOString()
+
+			return { rowCount: 1, rows: [] }
+		}
+
+		if (sql.includes('UPDATE recurring_transactions') && sql.includes('SET is_active = false')) {
+			const [id] = queryParams as [string]
+			const recurringTransaction = this.recurringTransactions.get(id)
+
+			if (!recurringTransaction) {
+				return { rowCount: 0, rows: [] }
+			}
+
+			recurringTransaction.isActive = false
+			recurringTransaction.updatedAt = new Date().toISOString()
+			return { rowCount: 1, rows: [] }
+		}
+
+		if (sql.includes('UPDATE recurring_transactions') && sql.includes('SET deleted_at = NOW()')) {
+			const [id] = queryParams as [string]
+			const recurringTransaction = this.recurringTransactions.get(id)
+
+			if (!recurringTransaction || recurringTransaction.deletedAt !== null) {
+				return { rowCount: 0, rows: [] }
+			}
+
+			recurringTransaction.deletedAt = new Date().toISOString()
+			recurringTransaction.isActive = false
+			recurringTransaction.updatedAt = new Date().toISOString()
 			return { rowCount: 1, rows: [] }
 		}
 
@@ -1757,6 +2151,13 @@ export class FakeDatabase {
 	seedTransactionTag(transactionTag: TransactionTagRow) {
 		this.transactionTags.set(transactionTag.id, this.normalizeSeedTransactionTag(transactionTag))
 	}
+
+	seedRecurringTransaction(recurringTransaction: RecurringTransactionRow) {
+		this.recurringTransactions.set(
+			recurringTransaction.id,
+			this.normalizeSeedRecurringTransaction(recurringTransaction),
+		)
+	}
 }
 
-export type { AccountRow, CategoryRow, ContactRow, CurrencyRow, GroupMemberRow, GroupRow, TagRow, TransactionRow, TransactionTagRow, UserRow }
+export type { AccountRow, CategoryRow, ContactRow, CurrencyRow, GroupMemberRow, GroupRow, RecurringTransactionRow, TagRow, TransactionRow, TransactionTagRow, UserRow }

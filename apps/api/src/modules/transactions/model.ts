@@ -77,6 +77,13 @@ const CreateTransferSchema = z.object({
 
 const GetTransactionsQuerySchema = z.object({
 	includeDeleted: z.coerce.boolean().optional().default(false),
+	from: z.iso.datetime({ offset: true }).optional(),
+	to: z.iso.datetime({ offset: true }).optional(),
+	accountId: z.uuid().optional(),
+	type: TransactionTypeSchema.optional(),
+	status: TransactionStatusSchema.optional(),
+	categoryId: z.uuid().optional(),
+	tagId: z.uuid().optional(),
 })
 
 const TransactionListSchema = z.array(TransactionSchema)
