@@ -2324,6 +2324,27 @@ export class FakeDatabase {
 			return { rowCount: 1, rows: [] }
 		}
 
+		if (sql.includes('UPDATE notifications') && sql.includes(`status = 'superseded'`)) {
+			const [userId, relatedSharedTransactionId] = queryParams as [string, string]
+			let count = 0
+
+			for (const notification of this.notifications.values()) {
+				if (
+					notification.userId === userId &&
+					notification.relatedSharedTransactionId === relatedSharedTransactionId &&
+					(notification.type === 'share_invite' || notification.type === 'share_updated') &&
+					notification.status === 'pending' &&
+					notification.deletedAt === null
+				) {
+					notification.status = 'superseded'
+					notification.updatedAt = new Date().toISOString()
+					count += 1
+				}
+			}
+
+			return { rowCount: count, rows: [] }
+		}
+
 		if (sql.includes('FROM notifications') && sql.includes('WHERE user_id = $1') && sql.includes('ORDER BY created_at DESC')) {
 			const [userId] = queryParams as [string]
 			let notifications = [...this.notifications.values()].filter((notification) => notification.userId === userId)
@@ -2403,7 +2424,16 @@ export class FakeDatabase {
 		}
 
 		if (sql.includes('INSERT INTO shared_transaction_participants')) {
-			const [id, sharedTransactionId, participantUserId, participantContactId, amount, approvalStatus, approvalVersion] =
+			const [
+				id,
+				sharedTransactionId,
+				participantUserId,
+				participantContactId,
+				amount,
+				approvalStatus,
+				approvalVersion,
+				userTransactionId,
+			] =
 				queryParams as [
 					string,
 					string,
@@ -2412,6 +2442,7 @@ export class FakeDatabase {
 					string,
 					SharedTransactionParticipantRow['approvalStatus'],
 					number,
+					string | null,
 				]
 
 			this.sharedTransactionParticipants.set(
@@ -2425,6 +2456,7 @@ export class FakeDatabase {
 					approvalStatus,
 					approvalVersion,
 					approvedAt: approvalStatus === 'accepted' ? new Date().toISOString() : null,
+					userTransactionId,
 				}),
 			)
 
@@ -2602,26 +2634,13 @@ export class FakeDatabase {
 		if (sql.includes('UPDATE shared_transaction_participants') && sql.includes(`approval_status = 'superseded'`)) {
 			const [sharedTransactionId] = queryParams as [string]
 			let count = 0
-			const supersededParticipantIds = new Set<string>()
 
 			for (const participant of this.sharedTransactionParticipants.values()) {
 				if (participant.sharedTransactionId === sharedTransactionId && participant.deletedAt === null) {
 					participant.approvalStatus = 'superseded'
 					participant.deletedAt = new Date().toISOString()
 					participant.updatedAt = new Date().toISOString()
-					supersededParticipantIds.add(participant.id)
 					count += 1
-				}
-			}
-
-			for (const transaction of this.transactions.values()) {
-				if (
-					transaction.sourceSharedTransactionParticipantId &&
-					supersededParticipantIds.has(transaction.sourceSharedTransactionParticipantId) &&
-					transaction.deletedAt === null
-				) {
-					transaction.deletedAt = new Date().toISOString()
-					transaction.updatedAt = new Date().toISOString()
 				}
 			}
 
@@ -2715,6 +2734,37 @@ export class FakeDatabase {
 			transaction.status = 'done'
 			transaction.updatedAt = new Date().toISOString()
 			return { rowCount: 1, rows: [] }
+		}
+
+		if (sql.includes('UPDATE transactions') && sql.includes(`SET status = 'pending'`) && sql.includes('RETURNING')) {
+			const [id, amount, description, notes, transactionDate, accountId, categoryId] = queryParams as [
+				string,
+				string,
+				string,
+				string | null,
+				string,
+				string,
+				string | null,
+			]
+			const transaction = this.transactions.get(id)
+
+			if (!transaction || transaction.deletedAt !== null) {
+				return { rowCount: 0, rows: [] }
+			}
+
+			transaction.status = 'pending'
+			transaction.amount = amount.trim()
+			transaction.description = description.trim()
+			transaction.notes = notes
+			transaction.transactionDate = transactionDate
+			transaction.accountId = accountId
+			transaction.categoryId = categoryId
+			transaction.updatedAt = new Date().toISOString()
+
+			return {
+				rowCount: 1,
+				rows: [this.buildTransactionResponse(transaction)],
+			}
 		}
 
 		if (sql.includes('UPDATE transactions') && sql.includes('source_shared_transaction_participant_id IN')) {

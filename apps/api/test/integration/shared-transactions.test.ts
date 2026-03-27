@@ -274,7 +274,27 @@ describe('shared transactions integration', () => {
 		})
 
 		expect(participantTransactionsAfterUpdateResponse.statusCode).toBe(200)
-		expect(participantTransactionsAfterUpdateResponse.json()).toEqual([])
+		expect(participantTransactionsAfterUpdateResponse.json()).toEqual([
+			expect.objectContaining({
+				status: 'pending',
+				description: 'Weekend house',
+				isFromShared: true,
+			}),
+		])
+
+		const participantNotificationsAfterUpdateResponse = await app.inject({
+			method: 'GET',
+			url: '/notifications?includeResolved=true',
+			headers: { cookie: participantCookie },
+		})
+
+		expect(participantNotificationsAfterUpdateResponse.statusCode).toBe(200)
+		expect(participantNotificationsAfterUpdateResponse.json()).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ type: 'share_invite', status: 'superseded' }),
+				expect.objectContaining({ type: 'share_updated', status: 'pending' }),
+			]),
+		)
 
 		const participantUpdatedSharedResponse = await app.inject({
 			method: 'GET',

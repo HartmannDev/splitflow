@@ -26,10 +26,14 @@ type GroupMemberLookup = {
 	memberUserId: string | null
 	memberContactId: string | null
 }
-type ContactLookup = {
-	id: string
-	linkedUserId: string | null
-}
+	type ContactLookup = {
+		id: string
+		linkedUserId: string | null
+	}
+
+	type PreviousParticipantCarryOver = {
+		userTransactionId: string | null
+	}
 type NotificationInputType = {
 	userId: string
 	type: 'share_invite' | 'share_updated' | 'payment_confirm_request' | 'payment_confirmed'
@@ -306,6 +310,24 @@ export const buildSharedTransactionController = (deps: AppDependency) => {
 		)
 	}
 
+	const supersedePendingApprovalNotifications = async (
+		queryable: Queryable,
+		sharedTransactionId: string,
+		userId: string,
+	) => {
+		await queryable.query(
+			`UPDATE notifications
+			SET status = 'superseded',
+				updated_at = NOW()
+			WHERE user_id = $1
+				AND related_shared_transaction_id = $2
+				AND type IN ('share_invite', 'share_updated')
+				AND status = 'pending'
+				AND deleted_at IS NULL`,
+			[userId, sharedTransactionId],
+		)
+	}
+
 	const recomputeSharedTransactionStatus = async (queryable: Queryable, sharedTransactionId: string) => {
 		const payload = await queryable.query(
 			`${sharedParticipantSelectSql}
@@ -452,9 +474,17 @@ export const buildSharedTransactionController = (deps: AppDependency) => {
 		currentEditVersion: number,
 		description: string,
 		definitions: Awaited<ReturnType<typeof buildParticipantDefinitions>>,
+		options?: {
+			notificationType?: 'share_invite' | 'share_updated'
+			previousCarryOverByParticipantKey?: Map<string, PreviousParticipantCarryOver>
+		},
 	) => {
 		for (const definition of definitions) {
 			const participantId = randomUUID()
+			const participantKey = definition.participantUserId
+				? `user:${definition.participantUserId}`
+				: `contact:${definition.participantContactId!}`
+			const previousCarryOver = options?.previousCarryOverByParticipantKey?.get(participantKey)
 
 			await queryable.query(
 				`INSERT INTO shared_transaction_participants (
@@ -470,7 +500,7 @@ export const buildSharedTransactionController = (deps: AppDependency) => {
 					payment_marked_at,
 					payment_confirmed_at,
 					user_transaction_id
-				) VALUES ($1, $2, $3, $4, $5, $6, $7, CASE WHEN $6 = 'accepted' THEN NOW() ELSE NULL END, 'unpaid', NULL, NULL, NULL)`,
+				) VALUES ($1, $2, $3, $4, $5, $6, $7, CASE WHEN $6 = 'accepted' THEN NOW() ELSE NULL END, 'unpaid', NULL, NULL, $8)`,
 				[
 					participantId,
 					sharedTransactionId,
@@ -479,6 +509,7 @@ export const buildSharedTransactionController = (deps: AppDependency) => {
 					definition.amount,
 					definition.approvalStatus,
 					currentEditVersion,
+					previousCarryOver?.userTransactionId ?? null,
 				],
 			)
 
@@ -487,14 +518,18 @@ export const buildSharedTransactionController = (deps: AppDependency) => {
 				definition.participantUserId !== ownerUserId &&
 				definition.approvalStatus === 'pending'
 			) {
+				await supersedePendingApprovalNotifications(queryable, sharedTransactionId, definition.participantUserId)
 				await createNotification(queryable, {
 					userId: definition.participantUserId,
-					type: 'share_invite',
-					title: 'New shared expense',
-					message: `You were added to "${description}"`,
+					type: options?.notificationType ?? 'share_invite',
+					title: options?.notificationType === 'share_updated' ? 'Shared expense updated' : 'New shared expense',
+					message:
+						options?.notificationType === 'share_updated'
+							? `The shared expense "${description}" was updated`
+							: `You were added to "${description}"`,
 					relatedSharedTransactionId: sharedTransactionId,
 					relatedSharedParticipantId: participantId,
-					relatedTransactionId: null,
+					relatedTransactionId: previousCarryOver?.userTransactionId ?? null,
 				})
 			}
 		}
@@ -636,6 +671,17 @@ export const buildSharedTransactionController = (deps: AppDependency) => {
 			if (!current || current.ownerUserId !== sessionUser.userId || current.deletedAt !== null) {
 				throw notFoundError('Shared transaction not found')
 			}
+			const currentParticipants = await loadParticipants([id], tx)
+			const previousCarryOverByParticipantKey = new Map<string, PreviousParticipantCarryOver>()
+
+			for (const participant of currentParticipants.get(id) ?? []) {
+				const participantKey = participant.participantUserId
+					? `user:${participant.participantUserId}`
+					: `contact:${participant.participantContactId!}`
+				previousCarryOverByParticipantKey.set(participantKey, {
+					userTransactionId: participant.userTransactionId,
+				})
+			}
 
 			const nextTotalAmount = input.totalAmount?.trim() ?? current.totalAmount
 			const nextDescription = input.description?.trim() ?? current.description
@@ -659,19 +705,6 @@ export const buildSharedTransactionController = (deps: AppDependency) => {
 					approval_status = 'superseded',
 					updated_at = NOW()
 				WHERE shared_transaction_id = $1
-					AND deleted_at IS NULL`,
-				[id],
-			)
-
-			await tx.query(
-				`UPDATE transactions
-				SET deleted_at = NOW(),
-					updated_at = NOW()
-				WHERE source_shared_transaction_participant_id IN (
-					SELECT id
-					FROM shared_transaction_participants
-					WHERE shared_transaction_id = $1
-				)
 					AND deleted_at IS NULL`,
 				[id],
 			)
@@ -706,7 +739,10 @@ export const buildSharedTransactionController = (deps: AppDependency) => {
 				[id, nextTotalAmount, nextDescription, nextNotes, nextTransactionDate, nextSplitMethod, nextVersion],
 			)
 
-			await insertParticipants(tx, id, sessionUser.userId, nextVersion, nextDescription, definitions)
+			await insertParticipants(tx, id, sessionUser.userId, nextVersion, nextDescription, definitions, {
+				notificationType: 'share_updated',
+				previousCarryOverByParticipantKey,
+			})
 			await recomputeSharedTransactionStatus(tx, id)
 			payloadRows = payload.rows as SharedTransactionRow[]
 		})
@@ -789,6 +825,49 @@ export const buildSharedTransactionController = (deps: AppDependency) => {
 						accountId,
 						categoryId ?? null,
 						participant.id,
+					],
+				)
+			} else {
+				await tx.query(
+					`UPDATE transactions
+					SET status = 'pending',
+						amount = $2,
+						description = $3,
+						notes = $4,
+						transaction_date = $5,
+						account_id = $6,
+						category_id = $7,
+						updated_at = NOW()
+					WHERE id = $1
+						AND deleted_at IS NULL
+					RETURNING
+						id,
+						user_id as "userId",
+						type,
+						status,
+						amount::text as "amount",
+						description,
+						notes,
+						to_json(transaction_date) as "transactionDate",
+						account_id as "accountId",
+						category_id as "categoryId",
+						recurring_transaction_id as "recurringTransactionId",
+						recurring_version as "recurringVersion",
+						transfer_pair_id as "transferPairId",
+						transfer_direction as "transferDirection",
+						is_from_shared as "isFromShared",
+						source_shared_transaction_participant_id as "sourceSharedTransactionParticipantId",
+						to_json(created_at) as "createdAt",
+						to_json(updated_at) as "updatedAt",
+						to_json(deleted_at) as "deletedAt"`,
+					[
+						userTransactionId,
+						participant.amount,
+						sharedTransaction.description,
+						sharedTransaction.notes,
+						sharedTransaction.transactionDate,
+						accountId,
+						categoryId ?? null,
 					],
 				)
 			}
