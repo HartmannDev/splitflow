@@ -135,6 +135,29 @@ describe('recurring transactions integration', () => {
 		])
 	})
 
+	it('requires category for recurring transaction templates', async () => {
+		await seedSessionUsers()
+		seedRecurringDependencies()
+
+		const { cookie } = await login('user@example.com', validPassword)
+		const response = await app.inject({
+			method: 'POST',
+			url: '/recurring-transactions',
+			headers: { cookie },
+			payload: {
+				type: 'expense',
+				mode: 'subscription',
+				frequency: 'monthly',
+				templateDescription: 'Netflix',
+				templateAmount: '19.99',
+				templateAccountId: '70000000-0000-4000-8000-000000000001',
+				startsOn: '2026-03-01',
+			},
+		})
+
+		expect(response.statusCode).toBe(400)
+	})
+
 	it('updates recurring templates for future occurrences and increments version', async () => {
 		await seedSessionUsers()
 		seedRecurringDependencies()

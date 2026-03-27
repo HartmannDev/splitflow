@@ -90,7 +90,7 @@ const GetSharedTransactionsQuerySchema = z.object({
 
 const AcceptSharedTransactionSchema = z.object({
 	accountId: z.uuid(),
-	categoryId: z.uuid().nullable().optional(),
+	categoryId: z.uuid(),
 })
 
 const SharedTransactionListSchema = z.array(SharedTransactionSchema)

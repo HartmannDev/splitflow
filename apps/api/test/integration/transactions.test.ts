@@ -281,6 +281,21 @@ describe('transactions integration', () => {
 
 		expect(invalidCategoryResponse.statusCode).toBe(400)
 
+		const missingCategoryResponse = await app.inject({
+			method: 'POST',
+			url: '/transactions',
+			headers: { cookie },
+			payload: {
+				type: 'income',
+				amount: '100',
+				description: 'Salary',
+				transactionDate: '2026-03-27T10:00:00.000Z',
+				accountId: '60000000-0000-4000-8000-000000000001',
+			},
+		})
+
+		expect(missingCategoryResponse.statusCode).toBe(400)
+
 		const invalidTagResponse = await app.inject({
 			method: 'POST',
 			url: '/transactions',
@@ -291,6 +306,7 @@ describe('transactions integration', () => {
 				description: 'Salary',
 				transactionDate: '2026-03-27T10:00:00.000Z',
 				accountId: '60000000-0000-4000-8000-000000000001',
+				categoryId: '60000000-0000-4000-8000-000000000011',
 				tagIds: ['60000000-0000-4000-8000-000000000022'],
 			},
 		})
@@ -301,6 +317,51 @@ describe('transactions integration', () => {
 			error: 'Bad Request',
 			message: 'All tags must belong to the current user',
 		})
+	})
+
+	it('requires category for normal transactions but not for transfers', async () => {
+		await seedSessionUsers()
+		seedTransactionDependencies()
+
+		seedTransaction({
+			id: '60000000-0000-4000-8000-000000000053',
+			userId,
+			type: 'expense',
+			status: 'pending',
+			amount: '12',
+			description: 'Coffee',
+			transactionDate: '2026-03-27T08:00:00.000Z',
+			accountId: '60000000-0000-4000-8000-000000000001',
+			categoryId: '60000000-0000-4000-8000-000000000010',
+		})
+
+		const { cookie } = await login('user@example.com', validPassword)
+		const clearCategoryResponse = await app.inject({
+			method: 'PATCH',
+			url: '/transactions/60000000-0000-4000-8000-000000000053',
+			headers: { cookie },
+			payload: {
+				categoryId: null,
+			},
+		})
+
+		expect(clearCategoryResponse.statusCode).toBe(400)
+
+		const transferResponse = await app.inject({
+			method: 'POST',
+			url: '/transactions/transfers',
+			headers: { cookie },
+			payload: {
+				fromAccountId: '60000000-0000-4000-8000-000000000001',
+				toAccountId: '60000000-0000-4000-8000-000000000003',
+				fromAmount: '30',
+				toAmount: '27',
+				description: 'Travel money',
+				transactionDate: '2026-03-27T12:00:00.000Z',
+			},
+		})
+
+		expect(transferResponse.statusCode).toBe(201)
 	})
 
 	it('creates transfer pairs and enforces same-currency amount matching', async () => {

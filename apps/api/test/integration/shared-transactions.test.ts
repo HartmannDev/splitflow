@@ -227,6 +227,17 @@ describe('shared transactions integration', () => {
 			}),
 		)
 
+		const missingCategoryAcceptResponse = await app.inject({
+			method: 'POST',
+			url: `/shared-transactions/${sharedTransactionId}/participants/${participantRecord.id}/accept`,
+			headers: { cookie: participantCookie },
+			payload: {
+				accountId: '80000000-0000-4000-8000-000000000001',
+			},
+		})
+
+		expect(missingCategoryAcceptResponse.statusCode).toBe(400)
+
 		const participantTransactionsResponse = await app.inject({
 			method: 'GET',
 			url: '/transactions',

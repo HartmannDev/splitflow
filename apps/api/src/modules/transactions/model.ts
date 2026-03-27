@@ -44,7 +44,7 @@ const CreateTransactionSchema = z.object({
 	notes: z.string().trim().min(1).nullable().optional(),
 	transactionDate: z.iso.datetime({ offset: true }),
 	accountId: z.uuid(),
-	categoryId: z.uuid().nullable().optional(),
+	categoryId: z.uuid(),
 	tagIds: z.array(z.uuid()).optional().default([]),
 })
 
@@ -56,7 +56,7 @@ const UpdateTransactionSchema = z
 		notes: z.string().trim().min(1).nullable().optional(),
 		transactionDate: z.iso.datetime({ offset: true }).optional(),
 		accountId: z.uuid().optional(),
-		categoryId: z.uuid().nullable().optional(),
+		categoryId: z.uuid().optional(),
 		tagIds: z.array(z.uuid()).optional(),
 	})
 	.refine((value) => Object.values(value).some((entry) => entry !== undefined), {

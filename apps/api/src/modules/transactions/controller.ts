@@ -356,6 +356,9 @@ export const buildTransactionController = (deps: AppDependency) => {
 
 		await db.transaction(async (tx) => {
 			await ensureAccountOwned(tx, accountId, sessionUser.userId)
+			if (!categoryId) {
+				throw badRequestError('Category is required')
+			}
 			await ensureCategoryAccessible(tx, categoryId, sessionUser.userId)
 			const normalizedTagIds = await ensureTagsOwned(tx, tagIds, sessionUser.userId)
 
@@ -484,6 +487,9 @@ export const buildTransactionController = (deps: AppDependency) => {
 
 		await db.transaction(async (tx) => {
 			await ensureAccountOwned(tx, nextAccountId, sessionUser.userId)
+			if (!nextCategoryId) {
+				throw badRequestError('Category is required')
+			}
 			await ensureCategoryAccessible(tx, nextCategoryId, sessionUser.userId)
 			const normalizedTagIds =
 				tagIds === undefined ? currentTransaction.tagIds : await ensureTagsOwned(tx, tagIds, sessionUser.userId)
