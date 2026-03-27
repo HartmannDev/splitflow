@@ -152,6 +152,7 @@ describe('shared transactions integration', () => {
 			headers: { cookie: ownerCookie },
 			payload: {
 				groupId: '80000000-0000-4000-8000-000000000030',
+				type: 'expense',
 				totalAmount: '100',
 				description: ' Weekend house ',
 				notes: ' beach ',
@@ -397,6 +398,80 @@ describe('shared transactions integration', () => {
 			expect.objectContaining({
 				status: 'done',
 				description: 'Weekend house updated',
+				isFromShared: true,
+			}),
+		])
+	})
+
+	it('supports shared income transactions and creates income ledger rows on acceptance', async () => {
+		await seedSessionUsers()
+		seedSharedDependencies()
+
+		seedCategory({
+			id: '80000000-0000-4000-8000-000000000011',
+			userId: null,
+			type: 'income',
+			name: 'Shared Income',
+			icon: 'coins',
+			color: '#f59e0b',
+			isDefault: true,
+		})
+
+		const { cookie: ownerCookie } = await login('owner@example.com', validPassword)
+		const createResponse = await app.inject({
+			method: 'POST',
+			url: '/shared-transactions',
+			headers: { cookie: ownerCookie },
+			payload: {
+				groupId: '80000000-0000-4000-8000-000000000030',
+				type: 'income',
+				totalAmount: '90',
+				description: ' Cashback ',
+				transactionDate: '2026-03-27T10:00:00.000Z',
+				splitMethod: 'equal',
+			},
+		})
+
+		expect(createResponse.statusCode).toBe(201)
+		const sharedTransactionId = createResponse.json().sharedTransactionId as string
+
+		const { cookie: participantCookie } = await login('participant@example.com', validPassword)
+		const participantSharedResponse = await app.inject({
+			method: 'GET',
+			url: `/shared-transactions/${sharedTransactionId}`,
+			headers: { cookie: participantCookie },
+		})
+
+		expect(participantSharedResponse.statusCode).toBe(200)
+		const participantRecord = participantSharedResponse
+			.json()
+			.participants.find((participant: { participantUserId: string | null }) => participant.participantUserId === participantId)
+
+		const acceptResponse = await app.inject({
+			method: 'POST',
+			url: `/shared-transactions/${sharedTransactionId}/participants/${participantRecord.id}/accept`,
+			headers: { cookie: participantCookie },
+			payload: {
+				accountId: '80000000-0000-4000-8000-000000000001',
+				categoryId: '80000000-0000-4000-8000-000000000011',
+			},
+		})
+
+		expect(acceptResponse.statusCode).toBe(200)
+
+		const participantTransactionsResponse = await app.inject({
+			method: 'GET',
+			url: '/transactions',
+			headers: { cookie: participantCookie },
+		})
+
+		expect(participantTransactionsResponse.statusCode).toBe(200)
+		expect(participantTransactionsResponse.json()).toEqual([
+			expect.objectContaining({
+				type: 'income',
+				status: 'pending',
+				description: 'Cashback',
+				categoryId: '80000000-0000-4000-8000-000000000011',
 				isFromShared: true,
 			}),
 		])

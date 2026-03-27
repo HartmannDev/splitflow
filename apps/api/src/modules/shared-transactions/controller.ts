@@ -242,6 +242,7 @@ export const buildSharedTransactionController = (deps: AppDependency) => {
 		queryable: Queryable,
 		categoryId: string | null | undefined,
 		userId: string,
+		type: SharedTransactionType['type'],
 	) => {
 		if (!categoryId) {
 			return
@@ -251,13 +252,13 @@ export const buildSharedTransactionController = (deps: AppDependency) => {
 			`SELECT id
 			FROM categories
 			WHERE id = $1
-				AND type = 'expense'
+				AND type = $2
 				AND deleted_at IS NULL
 				AND (
 					is_default = true
-					OR (user_id = $2 AND is_default = false)
+					OR (user_id = $3 AND is_default = false)
 				)`,
-			[categoryId, userId],
+			[categoryId, type, userId],
 		)
 
 		if (payload.rowCount === 0) {
@@ -522,10 +523,10 @@ export const buildSharedTransactionController = (deps: AppDependency) => {
 				await createNotification(queryable, {
 					userId: definition.participantUserId,
 					type: options?.notificationType ?? 'share_invite',
-					title: options?.notificationType === 'share_updated' ? 'Shared expense updated' : 'New shared expense',
+					title: options?.notificationType === 'share_updated' ? 'Shared transaction updated' : 'New shared transaction',
 					message:
 						options?.notificationType === 'share_updated'
-							? `The shared expense "${description}" was updated`
+							? `The shared transaction "${description}" was updated`
 							: `You were added to "${description}"`,
 					relatedSharedTransactionId: sharedTransactionId,
 					relatedSharedParticipantId: participantId,
@@ -608,7 +609,7 @@ export const buildSharedTransactionController = (deps: AppDependency) => {
 
 	const createSharedTransaction = async (req: FastifyRequest, res: FastifyReply) => {
 		const sessionUser = req.session.user!
-		const { groupId, totalAmount, description, notes, transactionDate, splitMethod, participantAmounts } =
+		const { groupId, type, totalAmount, description, notes, transactionDate, splitMethod, participantAmounts } =
 			req.body as CreateSharedTransactionInput
 
 		const sharedTransactionId = randomUUID()
@@ -637,11 +638,12 @@ export const buildSharedTransactionController = (deps: AppDependency) => {
 					split_method,
 					status,
 					current_edit_version
-				) VALUES ($1, $2, $3, 'expense', $4, $5, $6, $7, $8, 'pending', 1)`,
+				) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending', 1)`,
 				[
 					sharedTransactionId,
 					sessionUser.userId,
 					groupId,
+					type,
 					totalAmount.trim(),
 					description.trim(),
 					notes?.trim() ?? null,
@@ -791,7 +793,7 @@ export const buildSharedTransactionController = (deps: AppDependency) => {
 			}
 
 			await ensureAccountOwned(tx, accountId, sessionUser.userId)
-			await ensureCategoryAccessible(tx, categoryId, sessionUser.userId)
+			await ensureCategoryAccessible(tx, categoryId, sessionUser.userId, sharedTransaction.type)
 
 			let userTransactionId = participant.userTransactionId
 			if (!userTransactionId) {
@@ -814,16 +816,17 @@ export const buildSharedTransactionController = (deps: AppDependency) => {
 						transfer_direction,
 						is_from_shared,
 						source_shared_transaction_participant_id
-					) VALUES ($1, $2, 'expense', 'pending', $3, $4, $5, $6, $7, $8, NULL, NULL, NULL, NULL, true, $9)`,
+					) VALUES ($1, $2, $3, 'pending', $4, $5, $6, $7, $8, $9, NULL, NULL, NULL, NULL, true, $10)`,
 					[
 						userTransactionId,
 						sessionUser.userId,
+						sharedTransaction.type,
 						participant.amount,
 						sharedTransaction.description,
 						sharedTransaction.notes,
 						sharedTransaction.transactionDate,
 						accountId,
-						categoryId ?? null,
+						categoryId,
 						participant.id,
 					],
 				)
@@ -867,7 +870,7 @@ export const buildSharedTransactionController = (deps: AppDependency) => {
 						sharedTransaction.notes,
 						sharedTransaction.transactionDate,
 						accountId,
-						categoryId ?? null,
+						categoryId,
 					],
 				)
 			}

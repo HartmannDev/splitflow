@@ -155,7 +155,7 @@ type SharedTransactionRow = {
 	id: string
 	ownerUserId: string
 	groupId: string
-	type: 'expense'
+	type: 'income' | 'expense'
 	totalAmount: string
 	description: string
 	notes?: string | null
@@ -1756,15 +1756,15 @@ export class FakeDatabase {
 			let transactionId: string
 			let transaction: TransactionRow
 
-			if (queryParams.length === 9 && sql.includes('source_shared_transaction_participant_id') && sql.includes(`is_from_shared,`)) {
-				const [id, userId, amount, description, notes, transactionDate, accountId, categoryId, sourceSharedTransactionParticipantId] =
-					queryParams as [string, string, string, string, string | null, string, string, string | null, string]
+			if (queryParams.length === 10 && sql.includes('source_shared_transaction_participant_id') && sql.includes(`is_from_shared,`)) {
+				const [id, userId, type, amount, description, notes, transactionDate, accountId, categoryId, sourceSharedTransactionParticipantId] =
+					queryParams as [string, string, TransactionRow['type'], string, string, string | null, string, string, string | null, string]
 				transactionId = id
 
 				transaction = this.normalizeSeedTransaction({
 					id,
 					userId,
-					type: 'expense',
+					type,
 					status: 'pending',
 					amount,
 					description,
@@ -2394,10 +2394,11 @@ export class FakeDatabase {
 		}
 
 		if (sql.includes('INSERT INTO shared_transactions')) {
-			const [id, ownerUserId, groupId, totalAmount, description, notes, transactionDate, splitMethod] = queryParams as [
+			const [id, ownerUserId, groupId, type, totalAmount, description, notes, transactionDate, splitMethod] = queryParams as [
 				string,
 				string,
 				string,
+				SharedTransactionRow['type'],
 				string,
 				string,
 				string | null,
@@ -2411,7 +2412,7 @@ export class FakeDatabase {
 					id,
 					ownerUserId,
 					groupId,
-					type: 'expense',
+					type,
 					totalAmount,
 					description,
 					notes,

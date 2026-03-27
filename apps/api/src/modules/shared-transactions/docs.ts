@@ -93,7 +93,7 @@ export const buildSharedTransactionDocs = () => {
 	}
 
 	const acceptSharedTransactionDocs: FastifyOpenApiSchema = {
-		description: 'Accept a user-backed participant share and create a pending personal transaction',
+		description: 'Accept a user-backed participant share and create a pending personal transaction of the same type',
 		tags: ['Shared Transactions'],
 		params: SharedTransactionParticipantIdSchema,
 		body: AcceptSharedTransactionSchema,

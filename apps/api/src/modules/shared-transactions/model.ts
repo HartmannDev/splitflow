@@ -4,7 +4,7 @@ const DecimalAmountSchema = z.string().trim().regex(/^\d+(\.\d{1,6})?$/, {
 	message: 'Must be a valid positive decimal amount with up to 6 decimal places',
 })
 
-const SharedTransactionTypeSchema = z.enum(['expense'])
+const SharedTransactionTypeSchema = z.enum(['income', 'expense'])
 const SharedSplitMethodSchema = z.enum(['equal', 'fixed'])
 const SharedTransactionStatusSchema = z.enum(['pending', 'partially_accepted', 'accepted', 'cancelled'])
 const ParticipantApprovalStatusSchema = z.enum(['pending', 'accepted', 'rejected', 'superseded'])
@@ -61,6 +61,7 @@ const SharedTransactionParticipantIdSchema = z.object({
 
 const CreateSharedTransactionSchema = z.object({
 	groupId: z.uuid(),
+	type: SharedTransactionTypeSchema,
 	totalAmount: DecimalAmountSchema,
 	description: z.string().trim().min(1),
 	notes: z.string().trim().min(1).nullable().optional(),
