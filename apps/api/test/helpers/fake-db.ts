@@ -151,6 +151,64 @@ type RecurringTransactionRow = {
 	deletedAt?: string | null
 }
 
+type SharedTransactionRow = {
+	id: string
+	ownerUserId: string
+	groupId: string
+	type: 'expense'
+	totalAmount: string
+	description: string
+	notes?: string | null
+	transactionDate: string
+	splitMethod: 'equal' | 'fixed'
+	status?: 'pending' | 'partially_accepted' | 'accepted' | 'cancelled'
+	currentEditVersion?: number
+	createdAt?: string
+	updatedAt?: string
+	deletedAt?: string | null
+}
+
+type SharedTransactionParticipantRow = {
+	id: string
+	sharedTransactionId: string
+	participantUserId?: string | null
+	participantContactId?: string | null
+	amount: string
+	approvalStatus?: 'pending' | 'accepted' | 'rejected' | 'superseded'
+	approvalVersion?: number
+	approvedAt?: string | null
+	paymentStatus?: 'unpaid' | 'marked_paid' | 'confirmed_paid'
+	paymentMarkedAt?: string | null
+	paymentConfirmedAt?: string | null
+	userTransactionId?: string | null
+	createdAt?: string
+	updatedAt?: string
+	deletedAt?: string | null
+}
+
+type NotificationRow = {
+	id: string
+	userId: string
+	type:
+		| 'share_invite'
+		| 'share_updated'
+		| 'payment_marked'
+		| 'payment_confirm_request'
+		| 'payment_confirmed'
+		| 'recurring_generated'
+	title: string
+	message: string
+	relatedSharedTransactionId?: string | null
+	relatedSharedParticipantId?: string | null
+	relatedTransactionId?: string | null
+	status?: 'pending' | 'read' | 'resolved' | 'dismissed' | 'superseded'
+	createdAt?: string
+	readAt?: string | null
+	actedAt?: string | null
+	updatedAt?: string
+	deletedAt?: string | null
+}
+
 class FakePool {
 	private readonly sessions = new Map<string, SessionRow>()
 
@@ -221,6 +279,9 @@ export class FakeDatabase {
 	private readonly transactions = new Map<string, TransactionRow>()
 	private readonly transactionTags = new Map<string, TransactionTagRow>()
 	private readonly recurringTransactions = new Map<string, RecurringTransactionRow>()
+	private readonly sharedTransactions = new Map<string, SharedTransactionRow>()
+	private readonly sharedTransactionParticipants = new Map<string, SharedTransactionParticipantRow>()
+	private readonly notifications = new Map<string, NotificationRow>()
 
 	private buildUserResponse(user: UserRow) {
 		return {
@@ -564,6 +625,122 @@ export class FakeDatabase {
 			createdAt: recurringTransaction.createdAt,
 			updatedAt: recurringTransaction.updatedAt,
 			deletedAt: recurringTransaction.deletedAt,
+		}
+	}
+
+	private normalizeSeedSharedTransaction(sharedTransaction: SharedTransactionRow): SharedTransactionRow {
+		const timestamp = new Date().toISOString()
+
+		return {
+			...sharedTransaction,
+			totalAmount: sharedTransaction.totalAmount.trim(),
+			description: sharedTransaction.description.trim(),
+			notes: sharedTransaction.notes ?? null,
+			status: sharedTransaction.status ?? 'pending',
+			currentEditVersion: sharedTransaction.currentEditVersion ?? 1,
+			createdAt: sharedTransaction.createdAt ?? timestamp,
+			updatedAt: sharedTransaction.updatedAt ?? timestamp,
+			deletedAt: sharedTransaction.deletedAt ?? null,
+		}
+	}
+
+	private buildSharedTransactionResponse(sharedTransaction: SharedTransactionRow) {
+		return {
+			id: sharedTransaction.id,
+			ownerUserId: sharedTransaction.ownerUserId,
+			groupId: sharedTransaction.groupId,
+			type: sharedTransaction.type,
+			totalAmount: sharedTransaction.totalAmount,
+			description: sharedTransaction.description,
+			notes: sharedTransaction.notes ?? null,
+			transactionDate: sharedTransaction.transactionDate,
+			splitMethod: sharedTransaction.splitMethod,
+			status: sharedTransaction.status ?? 'pending',
+			currentEditVersion: sharedTransaction.currentEditVersion ?? 1,
+			createdAt: sharedTransaction.createdAt,
+			updatedAt: sharedTransaction.updatedAt,
+			deletedAt: sharedTransaction.deletedAt,
+		}
+	}
+
+	private normalizeSeedSharedTransactionParticipant(
+		participant: SharedTransactionParticipantRow,
+	): SharedTransactionParticipantRow {
+		const timestamp = new Date().toISOString()
+
+		return {
+			...participant,
+			participantUserId: participant.participantUserId ?? null,
+			participantContactId: participant.participantContactId ?? null,
+			amount: participant.amount.trim(),
+			approvalStatus: participant.approvalStatus ?? 'pending',
+			approvalVersion: participant.approvalVersion ?? 1,
+			approvedAt: participant.approvedAt ?? null,
+			paymentStatus: participant.paymentStatus ?? 'unpaid',
+			paymentMarkedAt: participant.paymentMarkedAt ?? null,
+			paymentConfirmedAt: participant.paymentConfirmedAt ?? null,
+			userTransactionId: participant.userTransactionId ?? null,
+			createdAt: participant.createdAt ?? timestamp,
+			updatedAt: participant.updatedAt ?? timestamp,
+			deletedAt: participant.deletedAt ?? null,
+		}
+	}
+
+	private buildSharedTransactionParticipantResponse(participant: SharedTransactionParticipantRow) {
+		return {
+			id: participant.id,
+			sharedTransactionId: participant.sharedTransactionId,
+			participantUserId: participant.participantUserId ?? null,
+			participantContactId: participant.participantContactId ?? null,
+			amount: participant.amount,
+			approvalStatus: participant.approvalStatus ?? 'pending',
+			approvalVersion: participant.approvalVersion ?? 1,
+			approvedAt: participant.approvedAt ?? null,
+			paymentStatus: participant.paymentStatus ?? 'unpaid',
+			paymentMarkedAt: participant.paymentMarkedAt ?? null,
+			paymentConfirmedAt: participant.paymentConfirmedAt ?? null,
+			userTransactionId: participant.userTransactionId ?? null,
+			createdAt: participant.createdAt,
+			updatedAt: participant.updatedAt,
+			deletedAt: participant.deletedAt,
+		}
+	}
+
+	private normalizeSeedNotification(notification: NotificationRow): NotificationRow {
+		const timestamp = new Date().toISOString()
+
+		return {
+			...notification,
+			title: notification.title.trim(),
+			message: notification.message.trim(),
+			relatedSharedTransactionId: notification.relatedSharedTransactionId ?? null,
+			relatedSharedParticipantId: notification.relatedSharedParticipantId ?? null,
+			relatedTransactionId: notification.relatedTransactionId ?? null,
+			status: notification.status ?? 'pending',
+			createdAt: notification.createdAt ?? timestamp,
+			readAt: notification.readAt ?? null,
+			actedAt: notification.actedAt ?? null,
+			updatedAt: notification.updatedAt ?? timestamp,
+			deletedAt: notification.deletedAt ?? null,
+		}
+	}
+
+	private buildNotificationResponse(notification: NotificationRow) {
+		return {
+			id: notification.id,
+			userId: notification.userId,
+			type: notification.type,
+			title: notification.title,
+			message: notification.message,
+			relatedSharedTransactionId: notification.relatedSharedTransactionId ?? null,
+			relatedSharedParticipantId: notification.relatedSharedParticipantId ?? null,
+			relatedTransactionId: notification.relatedTransactionId ?? null,
+			status: notification.status ?? 'pending',
+			createdAt: notification.createdAt,
+			readAt: notification.readAt ?? null,
+			actedAt: notification.actedAt ?? null,
+			updatedAt: notification.updatedAt,
+			deletedAt: notification.deletedAt,
 		}
 	}
 
@@ -1256,7 +1433,11 @@ export class FakeDatabase {
 
 			return {
 				rowCount: 1,
-				rows: [this.buildContactResponse(contact)],
+				rows: [
+					sql.includes('linked_user_id as "linkedUserId"')
+						? { id: contact.id, linkedUserId: contact.linkedUserId ?? null }
+						: this.buildContactResponse(contact),
+				],
 			}
 		}
 
@@ -1575,7 +1756,26 @@ export class FakeDatabase {
 			let transactionId: string
 			let transaction: TransactionRow
 
-			if (sql.includes('recurring_transaction_id')) {
+			if (queryParams.length === 9 && sql.includes('source_shared_transaction_participant_id') && sql.includes(`is_from_shared,`)) {
+				const [id, userId, amount, description, notes, transactionDate, accountId, categoryId, sourceSharedTransactionParticipantId] =
+					queryParams as [string, string, string, string, string | null, string, string, string | null, string]
+				transactionId = id
+
+				transaction = this.normalizeSeedTransaction({
+					id,
+					userId,
+					type: 'expense',
+					status: 'pending',
+					amount,
+					description,
+					notes,
+					transactionDate,
+					accountId,
+					categoryId,
+					isFromShared: true,
+					sourceSharedTransactionParticipantId,
+				})
+			} else if (sql.includes('recurring_transaction_id')) {
 				const [id, userId, type, amount, description, notes, transactionDate, accountId, categoryId, recurringTransactionId, recurringVersion] =
 					queryParams as [string, string, TransactionRow['type'], string, string, string | null, string, string, string | null, string, number]
 				transactionId = id
@@ -1799,7 +1999,11 @@ export class FakeDatabase {
 			return { rowCount: count, rows: [] }
 		}
 
-		if (sql.includes('UPDATE transactions') && sql.includes('SET deleted_at = NOW()')) {
+		if (
+			sql.includes('UPDATE transactions') &&
+			sql.includes('SET deleted_at = NOW()') &&
+			!sql.includes('source_shared_transaction_participant_id IN')
+		) {
 			const [id] = queryParams as [string]
 			const transaction = this.transactions.get(id)
 
@@ -2055,6 +2259,502 @@ export class FakeDatabase {
 			return { rowCount: 1, rows: [] }
 		}
 
+		if (sql.includes('SELECT id') && sql.includes('FROM groups') && sql.includes('owner_user_id = $2')) {
+			const [id, ownerUserId] = queryParams as [string, string]
+			const group = this.groups.get(id)
+
+			return {
+				rowCount: group && group.ownerUserId === ownerUserId && group.deletedAt === null ? 1 : 0,
+				rows:
+					group && group.ownerUserId === ownerUserId && group.deletedAt === null
+						? [{ id: group.id }]
+						: [],
+			}
+		}
+
+		if (sql.includes('FROM group_members') && sql.includes('member_user_id as "memberUserId"') && sql.includes('group_id = $1')) {
+			const [groupId] = queryParams as [string]
+			const rows = [...this.groupMembers.values()]
+				.filter((member) => member.groupId === groupId && member.deletedAt === null)
+				.sort((left, right) => left.createdAt!.localeCompare(right.createdAt!))
+				.map((member) => ({
+					id: member.id,
+					memberUserId: member.memberUserId ?? null,
+					memberContactId: member.memberContactId ?? null,
+				}))
+
+			return {
+				rowCount: rows.length,
+				rows,
+			}
+		}
+
+		if (sql.includes('FROM contacts') && sql.includes('linked_user_id as "linkedUserId"')) {
+			const [id, userId] = queryParams as [string, string]
+			const contact = this.contacts.get(id)
+
+			if (!contact || contact.userId !== userId || contact.deletedAt !== null) {
+				return { rowCount: 0, rows: [] }
+			}
+
+			return {
+				rowCount: 1,
+				rows: [{ id: contact.id, linkedUserId: contact.linkedUserId ?? null }],
+			}
+		}
+
+		if (sql.includes('INSERT INTO notifications')) {
+			const [id, userId, type, title, message, relatedSharedTransactionId, relatedSharedParticipantId, relatedTransactionId] =
+				queryParams as [string, string, NotificationRow['type'], string, string, string | null, string | null, string | null]
+
+			this.notifications.set(
+				id,
+				this.normalizeSeedNotification({
+					id,
+					userId,
+					type,
+					title,
+					message,
+					relatedSharedTransactionId,
+					relatedSharedParticipantId,
+					relatedTransactionId,
+				}),
+			)
+
+			return { rowCount: 1, rows: [] }
+		}
+
+		if (sql.includes('FROM notifications') && sql.includes('WHERE user_id = $1') && sql.includes('ORDER BY created_at DESC')) {
+			const [userId] = queryParams as [string]
+			let notifications = [...this.notifications.values()].filter((notification) => notification.userId === userId)
+
+			if (sql.includes('AND deleted_at IS NULL')) {
+				notifications = notifications.filter((notification) => notification.deletedAt === null)
+			}
+
+			if (sql.includes(`AND status NOT IN ('resolved', 'dismissed', 'superseded')`)) {
+				notifications = notifications.filter(
+					(notification) => !['resolved', 'dismissed', 'superseded'].includes(notification.status ?? 'pending'),
+				)
+			}
+
+			notifications.sort((left, right) => right.createdAt!.localeCompare(left.createdAt!))
+
+			return {
+				rowCount: notifications.length,
+				rows: notifications.map((notification) => this.buildNotificationResponse(notification)),
+			}
+		}
+
+		if (sql.includes('UPDATE notifications') && sql.includes('AND user_id = $2') && sql.includes('RETURNING')) {
+			const [id, userId, status] = queryParams as [string, string, NotificationRow['status'] | undefined]
+			const notification = this.notifications.get(id)
+
+			if (!notification || notification.userId !== userId || notification.deletedAt !== null) {
+				return { rowCount: 0, rows: [] }
+			}
+
+			notification.status = status ?? 'dismissed'
+			if (status === 'read' && notification.readAt === null) {
+				notification.readAt = new Date().toISOString()
+			}
+			if (status === 'resolved') {
+				notification.actedAt = new Date().toISOString()
+			}
+			if (!status) {
+				notification.deletedAt = new Date().toISOString()
+			}
+			notification.updatedAt = new Date().toISOString()
+
+			return {
+				rowCount: 1,
+				rows: [this.buildNotificationResponse(notification)],
+			}
+		}
+
+		if (sql.includes('INSERT INTO shared_transactions')) {
+			const [id, ownerUserId, groupId, totalAmount, description, notes, transactionDate, splitMethod] = queryParams as [
+				string,
+				string,
+				string,
+				string,
+				string,
+				string | null,
+				string,
+				SharedTransactionRow['splitMethod'],
+			]
+
+			this.sharedTransactions.set(
+				id,
+				this.normalizeSeedSharedTransaction({
+					id,
+					ownerUserId,
+					groupId,
+					type: 'expense',
+					totalAmount,
+					description,
+					notes,
+					transactionDate,
+					splitMethod,
+				}),
+			)
+
+			return { rowCount: 1, rows: [] }
+		}
+
+		if (sql.includes('INSERT INTO shared_transaction_participants')) {
+			const [id, sharedTransactionId, participantUserId, participantContactId, amount, approvalStatus, approvalVersion] =
+				queryParams as [
+					string,
+					string,
+					string | null,
+					string | null,
+					string,
+					SharedTransactionParticipantRow['approvalStatus'],
+					number,
+				]
+
+			this.sharedTransactionParticipants.set(
+				id,
+				this.normalizeSeedSharedTransactionParticipant({
+					id,
+					sharedTransactionId,
+					participantUserId,
+					participantContactId,
+					amount,
+					approvalStatus,
+					approvalVersion,
+					approvedAt: approvalStatus === 'accepted' ? new Date().toISOString() : null,
+				}),
+			)
+
+			return { rowCount: 1, rows: [] }
+		}
+
+		if (sql.includes('FROM shared_transaction_participants') && sql.includes('shared_transaction_id = ANY($1)')) {
+			const [sharedTransactionIds] = queryParams as [string[]]
+			const rows = [...this.sharedTransactionParticipants.values()]
+				.filter(
+					(participant) =>
+						participant.deletedAt === null && sharedTransactionIds.includes(participant.sharedTransactionId),
+				)
+				.sort((left, right) => left.createdAt!.localeCompare(right.createdAt!))
+				.map((participant) => this.buildSharedTransactionParticipantResponse(participant))
+
+			return {
+				rowCount: rows.length,
+				rows,
+			}
+		}
+
+		if (sql.includes('FROM shared_transaction_participants') && sql.includes('shared_transaction_id = $1')) {
+			const [sharedTransactionId] = queryParams as [string]
+			const rows = [...this.sharedTransactionParticipants.values()]
+				.filter((participant) => participant.sharedTransactionId === sharedTransactionId && participant.deletedAt === null)
+				.map((participant) => this.buildSharedTransactionParticipantResponse(participant))
+
+			return {
+				rowCount: rows.length,
+				rows,
+			}
+		}
+
+		if (
+			sql.includes('FROM shared_transactions') &&
+			sql.includes('WHERE id = $1') &&
+			sql.includes('owner_user_id = $2') &&
+			!sql.includes('SELECT 1')
+		) {
+			const [id, userId] = queryParams as [string, string]
+			const sharedTransaction = this.sharedTransactions.get(id)
+
+			return {
+				rowCount:
+					sharedTransaction && sharedTransaction.ownerUserId === userId && sharedTransaction.deletedAt === null ? 1 : 0,
+				rows:
+					sharedTransaction && sharedTransaction.ownerUserId === userId && sharedTransaction.deletedAt === null
+						? [this.buildSharedTransactionResponse(sharedTransaction)]
+						: [],
+			}
+		}
+
+		if (sql.includes('FROM shared_transactions') && sql.includes('WHERE id = $1') && sql.includes('SELECT 1') && sql.includes('participant_user_id = $2')) {
+			const [id, userId] = queryParams as [string, string]
+			const sharedTransaction = this.sharedTransactions.get(id)
+			const participantMatch = [...this.sharedTransactionParticipants.values()].some(
+				(participant) =>
+					participant.sharedTransactionId === id &&
+					participant.participantUserId === userId &&
+					participant.deletedAt === null,
+			)
+
+			if (!sharedTransaction || (!participantMatch && sharedTransaction.ownerUserId !== userId)) {
+				return { rowCount: 0, rows: [] }
+			}
+
+			if (sql.includes('AND deleted_at IS NULL') && sharedTransaction.deletedAt !== null) {
+				return { rowCount: 0, rows: [] }
+			}
+
+			return {
+				rowCount: 1,
+				rows: [this.buildSharedTransactionResponse(sharedTransaction)],
+			}
+		}
+
+		if (sql.includes('FROM shared_transactions') && sql.includes('WHERE id = $1')) {
+			const [id] = queryParams as [string]
+			const sharedTransaction = this.sharedTransactions.get(id)
+
+			return {
+				rowCount: sharedTransaction ? 1 : 0,
+				rows: sharedTransaction ? [this.buildSharedTransactionResponse(sharedTransaction)] : [],
+			}
+		}
+
+		if (sql.includes('FROM shared_transactions') && sql.includes('ORDER BY transaction_date DESC, created_at DESC')) {
+			const [userId] = queryParams as [string]
+			let sharedTransactions = [...this.sharedTransactions.values()].filter((sharedTransaction) => {
+				if (sharedTransaction.ownerUserId === userId) {
+					return true
+				}
+
+				return [...this.sharedTransactionParticipants.values()].some(
+					(participant) =>
+						participant.sharedTransactionId === sharedTransaction.id &&
+						participant.participantUserId === userId &&
+						participant.deletedAt === null,
+				)
+			})
+
+			if (sql.includes('AND deleted_at IS NULL')) {
+				sharedTransactions = sharedTransactions.filter((sharedTransaction) => sharedTransaction.deletedAt === null)
+			}
+
+			if (sql.includes('group_id = $2')) {
+				const [, groupId] = queryParams as [string, string]
+				sharedTransactions = sharedTransactions.filter((sharedTransaction) => sharedTransaction.groupId === groupId)
+			}
+
+			if (sql.includes('status = $2') || sql.includes('status = $3')) {
+				const status = queryParams[queryParams.length - 1] as SharedTransactionRow['status']
+				sharedTransactions = sharedTransactions.filter((sharedTransaction) => sharedTransaction.status === status)
+			}
+
+			sharedTransactions.sort((left, right) => {
+				const dateCompare = right.transactionDate.localeCompare(left.transactionDate)
+				if (dateCompare !== 0) {
+					return dateCompare
+				}
+				return right.createdAt!.localeCompare(left.createdAt!)
+			})
+
+			return {
+				rowCount: sharedTransactions.length,
+				rows: sharedTransactions.map((sharedTransaction) => this.buildSharedTransactionResponse(sharedTransaction)),
+			}
+		}
+
+		if (sql.includes('UPDATE shared_transactions') && sql.includes('SET status = $2')) {
+			const [id, status] = queryParams as [string, SharedTransactionRow['status']]
+			const sharedTransaction = this.sharedTransactions.get(id)
+
+			if (!sharedTransaction) {
+				return { rowCount: 0, rows: [] }
+			}
+
+			sharedTransaction.status = status
+			sharedTransaction.updatedAt = new Date().toISOString()
+			return { rowCount: 1, rows: [] }
+		}
+
+		if (sql.includes('UPDATE shared_transactions') && sql.includes('current_edit_version = $7')) {
+			const [id, totalAmount, description, notes, transactionDate, splitMethod, currentEditVersion] = queryParams as [
+				string,
+				string,
+				string,
+				string | null,
+				string,
+				SharedTransactionRow['splitMethod'],
+				number,
+			]
+			const sharedTransaction = this.sharedTransactions.get(id)
+
+			if (!sharedTransaction || sharedTransaction.deletedAt !== null) {
+				return { rowCount: 0, rows: [] }
+			}
+
+			sharedTransaction.totalAmount = totalAmount.trim()
+			sharedTransaction.description = description.trim()
+			sharedTransaction.notes = notes
+			sharedTransaction.transactionDate = transactionDate
+			sharedTransaction.splitMethod = splitMethod
+			sharedTransaction.status = 'pending'
+			sharedTransaction.currentEditVersion = currentEditVersion
+			sharedTransaction.updatedAt = new Date().toISOString()
+
+			return {
+				rowCount: 1,
+				rows: [this.buildSharedTransactionResponse(sharedTransaction)],
+			}
+		}
+
+		if (sql.includes('UPDATE shared_transaction_participants') && sql.includes(`approval_status = 'superseded'`)) {
+			const [sharedTransactionId] = queryParams as [string]
+			let count = 0
+			const supersededParticipantIds = new Set<string>()
+
+			for (const participant of this.sharedTransactionParticipants.values()) {
+				if (participant.sharedTransactionId === sharedTransactionId && participant.deletedAt === null) {
+					participant.approvalStatus = 'superseded'
+					participant.deletedAt = new Date().toISOString()
+					participant.updatedAt = new Date().toISOString()
+					supersededParticipantIds.add(participant.id)
+					count += 1
+				}
+			}
+
+			for (const transaction of this.transactions.values()) {
+				if (
+					transaction.sourceSharedTransactionParticipantId &&
+					supersededParticipantIds.has(transaction.sourceSharedTransactionParticipantId) &&
+					transaction.deletedAt === null
+				) {
+					transaction.deletedAt = new Date().toISOString()
+					transaction.updatedAt = new Date().toISOString()
+				}
+			}
+
+			return { rowCount: count, rows: [] }
+		}
+
+		if (sql.includes('UPDATE shared_transaction_participants') && sql.includes(`approval_status = 'accepted'`)) {
+			const [id, userTransactionId] = queryParams as [string, string]
+			const participant = this.sharedTransactionParticipants.get(id)
+
+			if (!participant || participant.deletedAt !== null) {
+				return { rowCount: 0, rows: [] }
+			}
+
+			participant.approvalStatus = 'accepted'
+			participant.approvedAt = new Date().toISOString()
+			participant.userTransactionId = userTransactionId
+			participant.updatedAt = new Date().toISOString()
+
+			return {
+				rowCount: 1,
+				rows: [this.buildSharedTransactionParticipantResponse(participant)],
+			}
+		}
+
+		if (sql.includes('UPDATE shared_transaction_participants') && sql.includes(`approval_status = 'rejected'`)) {
+			const [id] = queryParams as [string]
+			const participant = this.sharedTransactionParticipants.get(id)
+
+			if (!participant || participant.deletedAt !== null) {
+				return { rowCount: 0, rows: [] }
+			}
+
+			participant.approvalStatus = 'rejected'
+			participant.approvedAt = null
+			participant.updatedAt = new Date().toISOString()
+
+			return {
+				rowCount: 1,
+				rows: [this.buildSharedTransactionParticipantResponse(participant)],
+			}
+		}
+
+		if (sql.includes('UPDATE shared_transaction_participants') && sql.includes('SET payment_status = $2')) {
+			const [id, paymentStatus] = queryParams as [string, SharedTransactionParticipantRow['paymentStatus']]
+			const participant = this.sharedTransactionParticipants.get(id)
+
+			if (!participant || participant.deletedAt !== null) {
+				return { rowCount: 0, rows: [] }
+			}
+
+			participant.paymentStatus = paymentStatus
+			participant.paymentMarkedAt = new Date().toISOString()
+			if (paymentStatus === 'confirmed_paid') {
+				participant.paymentConfirmedAt = new Date().toISOString()
+			}
+			participant.updatedAt = new Date().toISOString()
+
+			return {
+				rowCount: 1,
+				rows: [this.buildSharedTransactionParticipantResponse(participant)],
+			}
+		}
+
+		if (sql.includes('UPDATE shared_transaction_participants') && sql.includes(`payment_status = 'confirmed_paid'`)) {
+			const [id] = queryParams as [string]
+			const participant = this.sharedTransactionParticipants.get(id)
+
+			if (!participant || participant.deletedAt !== null) {
+				return { rowCount: 0, rows: [] }
+			}
+
+			participant.paymentStatus = 'confirmed_paid'
+			participant.paymentConfirmedAt = new Date().toISOString()
+			participant.updatedAt = new Date().toISOString()
+
+			return {
+				rowCount: 1,
+				rows: [this.buildSharedTransactionParticipantResponse(participant)],
+			}
+		}
+
+		if (sql.includes('UPDATE transactions') && sql.includes(`SET status = 'done'`)) {
+			const [id] = queryParams as [string]
+			const transaction = this.transactions.get(id)
+
+			if (!transaction || transaction.deletedAt !== null) {
+				return { rowCount: 0, rows: [] }
+			}
+
+			transaction.status = 'done'
+			transaction.updatedAt = new Date().toISOString()
+			return { rowCount: 1, rows: [] }
+		}
+
+		if (sql.includes('UPDATE transactions') && sql.includes('source_shared_transaction_participant_id IN')) {
+			const [sharedTransactionId] = queryParams as [string]
+			const participantIds = new Set(
+				[...this.sharedTransactionParticipants.values()]
+					.filter((participant) => participant.sharedTransactionId === sharedTransactionId)
+					.map((participant) => participant.id),
+			)
+			let count = 0
+
+			for (const transaction of this.transactions.values()) {
+				if (
+					transaction.sourceSharedTransactionParticipantId &&
+					participantIds.has(transaction.sourceSharedTransactionParticipantId) &&
+					transaction.deletedAt === null
+				) {
+					transaction.deletedAt = new Date().toISOString()
+					transaction.updatedAt = new Date().toISOString()
+					count += 1
+				}
+			}
+
+			return { rowCount: count, rows: [] }
+		}
+
+		if (sql.includes('UPDATE shared_transactions') && sql.includes(`status = 'cancelled'`)) {
+			const [id] = queryParams as [string]
+			const sharedTransaction = this.sharedTransactions.get(id)
+
+			if (!sharedTransaction || sharedTransaction.deletedAt !== null) {
+				return { rowCount: 0, rows: [] }
+			}
+
+			sharedTransaction.deletedAt = new Date().toISOString()
+			sharedTransaction.status = 'cancelled'
+			sharedTransaction.updatedAt = new Date().toISOString()
+			return { rowCount: 1, rows: [] }
+		}
+
 		if (sql.includes('UPDATE currencies') && sql.includes('SET name = $2')) {
 			const [code, name, symbol, decimalPlaces, isActive] = queryParams as [string, string, string, number, boolean]
 			const currency = this.currencies.get(code.toUpperCase())
@@ -2158,6 +2858,39 @@ export class FakeDatabase {
 			this.normalizeSeedRecurringTransaction(recurringTransaction),
 		)
 	}
+
+	seedSharedTransaction(sharedTransaction: SharedTransactionRow) {
+		this.sharedTransactions.set(
+			sharedTransaction.id,
+			this.normalizeSeedSharedTransaction(sharedTransaction),
+		)
+	}
+
+	seedSharedTransactionParticipant(participant: SharedTransactionParticipantRow) {
+		this.sharedTransactionParticipants.set(
+			participant.id,
+			this.normalizeSeedSharedTransactionParticipant(participant),
+		)
+	}
+
+	seedNotification(notification: NotificationRow) {
+		this.notifications.set(notification.id, this.normalizeSeedNotification(notification))
+	}
 }
 
-export type { AccountRow, CategoryRow, ContactRow, CurrencyRow, GroupMemberRow, GroupRow, RecurringTransactionRow, TagRow, TransactionRow, TransactionTagRow, UserRow }
+export type {
+	AccountRow,
+	CategoryRow,
+	ContactRow,
+	CurrencyRow,
+	GroupMemberRow,
+	GroupRow,
+	NotificationRow,
+	RecurringTransactionRow,
+	SharedTransactionParticipantRow,
+	SharedTransactionRow,
+	TagRow,
+	TransactionRow,
+	TransactionTagRow,
+	UserRow,
+}
