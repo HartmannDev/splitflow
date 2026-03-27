@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import process from 'node:process'
 
 import { buildApp } from './app.ts'
@@ -6,11 +7,21 @@ import { buildEmailTransporter } from './plugins/nodemailer.ts'
 
 import type { NodeEnvTypes } from './types/app.d.ts'
 
+const readEnvValue = (name: string) => {
+	const filePath = process.env[`${name}_FILE`]
+
+	if (filePath) {
+		return readFileSync(filePath, 'utf8').trim()
+	}
+
+	return process.env[name]
+}
+
 const port = process.env.PORT ? parseInt(process.env.PORT) : 3000
 const host = process.env.HOST || '0.0.0.0'
 const nodeEnv = (process.env.NODE_ENV as NodeEnvTypes) || 'dev'
-const sessionSecret = process.env.SESSION_SECRET
-const passwordPepper = process.env.PASSWORD_PEPPER
+const sessionSecret = readEnvValue('SESSION_SECRET')
+const passwordPepper = readEnvValue('PASSWORD_PEPPER')
 
 if (!sessionSecret) {
 	console.error('SESSION_SECRET environment variable is required')

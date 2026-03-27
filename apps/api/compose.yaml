@@ -14,14 +14,21 @@ services:
       DB_HOST: db
       DB_PORT: 5432
       DB_USER: postgres
-      DB_PASSWORD: postgres
-      DATABASE: splitflow      
-      PASSWORD_PEPPER: 5aa77c91ee8e7dbdf2c4d3140b1921df
+      DB_PASSWORD_FILE: /run/secrets/db_password
+      DATABASE: splitflow
+      PASSWORD_PEPPER_FILE: /run/secrets/password_pepper
       NODE_ENV: dev
-      SESSION_SECRET: 'VWqJxi@HSk3*Yi5U*z319XkSdCFmrul6T@$$jDRgO'
+      SESSION_SECRET_FILE: /run/secrets/session_secret
+      GMAIL_APP_EMAIL: 'dev.mghartmann@gmail.com'
+      GMAIL_APP_PASSWORD_FILE: /run/secrets/gmail_app_password
     depends_on:
       db:
         condition: service_healthy
+    secrets:
+      - db_password
+      - password_pepper
+      - session_secret
+      - gmail_app_password
 
   db:
     image: postgres:latest
@@ -30,7 +37,7 @@ services:
     environment:
       POSTGRES_DB: splitflow
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
     volumes:
       - postgres_data:/var/lib/postgresql
     healthcheck:
@@ -38,6 +45,18 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    secrets:
+      - db_password
 
 volumes:
   postgres_data:
+
+secrets:
+  db_password:
+    file: ./secrets/db_password.txt
+  password_pepper:
+    file: ./secrets/password_pepper.txt
+  session_secret:
+    file: ./secrets/session_secret.txt
+  gmail_app_password:
+    file: ./secrets/gmail_app_password.txt

@@ -1,10 +1,22 @@
+import { readFileSync } from 'node:fs'
+
 import { Pool, type PoolClient } from 'pg'
+
+const readEnvValue = (name: string) => {
+	const filePath = process.env[`${name}_FILE`]
+
+	if (filePath) {
+		return readFileSync(filePath, 'utf8').trim()
+	}
+
+	return process.env[name]
+}
 
 const pool = new Pool({
 	host: process.env.DB_HOST,
 	port: Number(process.env.DB_PORT),
 	user: process.env.DB_USER,
-	password: process.env.DB_PASSWORD,
+	password: readEnvValue('DB_PASSWORD'),
 	database: process.env.DATABASE,
 })
 

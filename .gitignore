@@ -22,6 +22,9 @@ apps/api/out/
 
 # Environment
 .env
+apps/api/secrets/*
+!apps/api/secrets/.gitkeep
+!apps/api/secrets/*.example
 
 # Testing
 coverage/
