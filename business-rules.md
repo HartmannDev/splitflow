@@ -661,8 +661,9 @@ Shared transactions should contain only shared/common information such as:
 
 ### Shared transaction type
 
-For now, shared transactions only support:
+Shared transactions support:
 
+- `income`
 - `expense`
 
 ### Split methods
@@ -684,6 +685,30 @@ Suggested statuses:
 ### Important note
 
 `account_id` and `category_id` should **not** be on `shared_transactions` because each participant may classify their accepted transaction differently.
+
+### Owner classification input
+
+When the owner creates a shared transaction, the API may require:
+
+- owner account
+- owner category
+
+These values are used to create or update the owner's own linked personal transaction.
+
+They are **not** stored on `shared_transactions` itself.
+
+### Shared response shape
+
+Shared transaction list responses should expose only shared/common fields plus participant data.
+
+They should **not** expose owner-only classification inputs such as:
+
+- owner account
+- owner category
+
+The shared transaction detail response may optionally expose owner account/category for the owner only as edit-prefill data.
+
+Those values are derived from the owner's linked personal transaction, not from shared common storage.
 
 ---
 
