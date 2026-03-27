@@ -62,6 +62,8 @@ const SharedTransactionParticipantIdSchema = z.object({
 const CreateSharedTransactionSchema = z.object({
 	groupId: z.uuid(),
 	type: SharedTransactionTypeSchema,
+	ownerAccountId: z.uuid(),
+	ownerCategoryId: z.uuid(),
 	totalAmount: DecimalAmountSchema,
 	description: z.string().trim().min(1),
 	notes: z.string().trim().min(1).nullable().optional(),

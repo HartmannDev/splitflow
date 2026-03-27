@@ -65,7 +65,7 @@ export const buildSharedTransactionDocs = () => {
 	}
 
 	const createSharedTransactionDocs: FastifyOpenApiSchema = {
-		description: 'Create a shared transaction for an owned group',
+		description: 'Create a shared transaction for an owned group and create the owner ledger transaction immediately',
 		tags: ['Shared Transactions'],
 		body: CreateSharedTransactionSchema,
 		security: [{ cookieAuth: [] }],

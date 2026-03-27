@@ -1765,7 +1765,7 @@ export class FakeDatabase {
 					id,
 					userId,
 					type,
-					status: 'pending',
+					status: sql.includes(`'done'`) ? 'done' : 'pending',
 					amount,
 					description,
 					notes,
@@ -2433,6 +2433,7 @@ export class FakeDatabase {
 				amount,
 				approvalStatus,
 				approvalVersion,
+				paymentStatus,
 				userTransactionId,
 			] =
 				queryParams as [
@@ -2443,6 +2444,7 @@ export class FakeDatabase {
 					string,
 					SharedTransactionParticipantRow['approvalStatus'],
 					number,
+					SharedTransactionParticipantRow['paymentStatus'],
 					string | null,
 				]
 
@@ -2457,6 +2459,9 @@ export class FakeDatabase {
 					approvalStatus,
 					approvalVersion,
 					approvedAt: approvalStatus === 'accepted' ? new Date().toISOString() : null,
+					paymentStatus,
+					paymentMarkedAt: paymentStatus === 'confirmed_paid' ? new Date().toISOString() : null,
+					paymentConfirmedAt: paymentStatus === 'confirmed_paid' ? new Date().toISOString() : null,
 					userTransactionId,
 				}),
 			)
@@ -2735,6 +2740,38 @@ export class FakeDatabase {
 			transaction.status = 'done'
 			transaction.updatedAt = new Date().toISOString()
 			return { rowCount: 1, rows: [] }
+		}
+
+		if (sql.includes('UPDATE transactions') && sql.includes('source_shared_transaction_participant_id = $7')) {
+			const [id, type, amount, description, notes, transactionDate, sourceSharedTransactionParticipantId, userId] = queryParams as [
+				string,
+				TransactionRow['type'],
+				string,
+				string,
+				string | null,
+				string,
+				string,
+				string,
+			]
+			const transaction = this.transactions.get(id)
+
+			if (!transaction || transaction.userId !== userId || transaction.deletedAt !== null) {
+				return { rowCount: 0, rows: [] }
+			}
+
+			transaction.type = type
+			transaction.status = 'done'
+			transaction.amount = amount.trim()
+			transaction.description = description.trim()
+			transaction.notes = notes
+			transaction.transactionDate = transactionDate
+			transaction.sourceSharedTransactionParticipantId = sourceSharedTransactionParticipantId
+			transaction.updatedAt = new Date().toISOString()
+
+			return {
+				rowCount: 1,
+				rows: [{ id: transaction.id }],
+			}
 		}
 
 		if (sql.includes('UPDATE transactions') && sql.includes(`SET status = 'pending'`) && sql.includes('RETURNING')) {

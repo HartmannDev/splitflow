@@ -89,6 +89,15 @@ describe('shared transactions integration', () => {
 
 	const seedSharedDependencies = () => {
 		seedAccount({
+			id: '80000000-0000-4000-8000-000000000000',
+			userId: ownerId,
+			currencyCode: 'USD',
+			name: 'Owner Checking',
+			icon: 'wallet',
+			color: '#0f766e',
+			initialValue: '0',
+		})
+		seedAccount({
 			id: '80000000-0000-4000-8000-000000000001',
 			userId: participantId,
 			currencyCode: 'USD',
@@ -153,6 +162,8 @@ describe('shared transactions integration', () => {
 			payload: {
 				groupId: '80000000-0000-4000-8000-000000000030',
 				type: 'expense',
+				ownerAccountId: '80000000-0000-4000-8000-000000000000',
+				ownerCategoryId: '80000000-0000-4000-8000-000000000010',
 				totalAmount: '100',
 				description: ' Weekend house ',
 				notes: ' beach ',
@@ -181,6 +192,24 @@ describe('shared transactions integration', () => {
 					expect.objectContaining({ participantUserId: participantId, amount: '33.333333', approvalStatus: 'pending' }),
 					expect.objectContaining({ participantContactId: '80000000-0000-4000-8000-000000000021', amount: '33.333333', approvalStatus: 'accepted' }),
 				]),
+			}),
+		])
+
+		const ownerTransactionsResponse = await app.inject({
+			method: 'GET',
+			url: '/transactions',
+			headers: { cookie: ownerCookie },
+		})
+
+		expect(ownerTransactionsResponse.statusCode).toBe(200)
+		expect(ownerTransactionsResponse.json()).toEqual([
+			expect.objectContaining({
+				type: 'expense',
+				status: 'done',
+				description: 'Weekend house',
+				accountId: '80000000-0000-4000-8000-000000000000',
+				categoryId: '80000000-0000-4000-8000-000000000010',
+				isFromShared: true,
 			}),
 		])
 
@@ -278,6 +307,24 @@ describe('shared transactions integration', () => {
 				]),
 			}),
 		)
+
+		const ownerTransactionsAfterUpdateResponse = await app.inject({
+			method: 'GET',
+			url: '/transactions',
+			headers: { cookie: ownerCookie },
+		})
+
+		expect(ownerTransactionsAfterUpdateResponse.statusCode).toBe(200)
+		expect(ownerTransactionsAfterUpdateResponse.json()).toEqual([
+			expect.objectContaining({
+				type: 'expense',
+				status: 'done',
+				description: 'Weekend house updated',
+				accountId: '80000000-0000-4000-8000-000000000000',
+				categoryId: '80000000-0000-4000-8000-000000000010',
+				isFromShared: true,
+			}),
+		])
 
 		const participantTransactionsAfterUpdateResponse = await app.inject({
 			method: 'GET',
@@ -425,6 +472,8 @@ describe('shared transactions integration', () => {
 			payload: {
 				groupId: '80000000-0000-4000-8000-000000000030',
 				type: 'income',
+				ownerAccountId: '80000000-0000-4000-8000-000000000000',
+				ownerCategoryId: '80000000-0000-4000-8000-000000000011',
 				totalAmount: '90',
 				description: ' Cashback ',
 				transactionDate: '2026-03-27T10:00:00.000Z',
@@ -434,6 +483,24 @@ describe('shared transactions integration', () => {
 
 		expect(createResponse.statusCode).toBe(201)
 		const sharedTransactionId = createResponse.json().sharedTransactionId as string
+
+		const ownerTransactionsResponse = await app.inject({
+			method: 'GET',
+			url: '/transactions',
+			headers: { cookie: ownerCookie },
+		})
+
+		expect(ownerTransactionsResponse.statusCode).toBe(200)
+		expect(ownerTransactionsResponse.json()).toEqual([
+			expect.objectContaining({
+				type: 'income',
+				status: 'done',
+				description: 'Cashback',
+				accountId: '80000000-0000-4000-8000-000000000000',
+				categoryId: '80000000-0000-4000-8000-000000000011',
+				isFromShared: true,
+			}),
+		])
 
 		const { cookie: participantCookie } = await login('participant@example.com', validPassword)
 		const participantSharedResponse = await app.inject({

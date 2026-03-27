@@ -472,12 +472,21 @@ export const buildSharedTransactionController = (deps: AppDependency) => {
 		queryable: Queryable,
 		sharedTransactionId: string,
 		ownerUserId: string,
-		currentEditVersion: number,
-		description: string,
+		sharedTransaction: {
+			type: SharedTransactionType['type']
+			description: string
+			notes: string | null
+			transactionDate: string
+			currentEditVersion: number
+		},
 		definitions: Awaited<ReturnType<typeof buildParticipantDefinitions>>,
 		options?: {
 			notificationType?: 'share_invite' | 'share_updated'
 			previousCarryOverByParticipantKey?: Map<string, PreviousParticipantCarryOver>
+			ownerLedgerInput?: {
+				accountId: string
+				categoryId: string
+			}
 		},
 	) => {
 		for (const definition of definitions) {
@@ -486,6 +495,79 @@ export const buildSharedTransactionController = (deps: AppDependency) => {
 				? `user:${definition.participantUserId}`
 				: `contact:${definition.participantContactId!}`
 			const previousCarryOver = options?.previousCarryOverByParticipantKey?.get(participantKey)
+
+			let userTransactionId = previousCarryOver?.userTransactionId ?? null
+			const isOwnerParticipant = definition.participantUserId === ownerUserId
+
+			if (isOwnerParticipant && userTransactionId) {
+				const updatePayload = await queryable.query(
+					`UPDATE transactions
+					SET type = $2,
+						status = 'done',
+						amount = $3,
+						description = $4,
+						notes = $5,
+						transaction_date = $6,
+						source_shared_transaction_participant_id = $7,
+						updated_at = NOW()
+					WHERE id = $1
+						AND user_id = $8
+						AND deleted_at IS NULL
+					RETURNING id`,
+					[
+						userTransactionId,
+						sharedTransaction.type,
+						definition.amount,
+						sharedTransaction.description,
+						sharedTransaction.notes,
+						sharedTransaction.transactionDate,
+						participantId,
+						ownerUserId,
+					],
+				)
+
+				if (updatePayload.rowCount === 0) {
+					throw badRequestError('Owner transaction not found')
+				}
+			} else if (isOwnerParticipant) {
+				if (!options?.ownerLedgerInput) {
+					throw badRequestError('Owner account and category are required')
+				}
+
+				userTransactionId = randomUUID()
+				await queryable.query(
+					`INSERT INTO transactions (
+						id,
+						user_id,
+						type,
+						status,
+						amount,
+						description,
+						notes,
+						transaction_date,
+						account_id,
+						category_id,
+						recurring_transaction_id,
+						recurring_version,
+						transfer_pair_id,
+						transfer_direction,
+						is_from_shared,
+						source_shared_transaction_participant_id
+					) VALUES ($1, $2, $3, 'done', $4, $5, $6, $7, $8, $9, NULL, NULL, NULL, NULL, true, $10)`,
+					[
+						userTransactionId,
+						ownerUserId,
+						sharedTransaction.type,
+						definition.amount,
+						sharedTransaction.description,
+						sharedTransaction.notes,
+						sharedTransaction.transactionDate,
+						options.ownerLedgerInput.accountId,
+						options.ownerLedgerInput.categoryId,
+						participantId,
+					],
+				)
+			}
 
 			await queryable.query(
 				`INSERT INTO shared_transaction_participants (
@@ -501,7 +583,20 @@ export const buildSharedTransactionController = (deps: AppDependency) => {
 					payment_marked_at,
 					payment_confirmed_at,
 					user_transaction_id
-				) VALUES ($1, $2, $3, $4, $5, $6, $7, CASE WHEN $6 = 'accepted' THEN NOW() ELSE NULL END, 'unpaid', NULL, NULL, $8)`,
+				) VALUES (
+					$1,
+					$2,
+					$3,
+					$4,
+					$5,
+					$6,
+					$7,
+					CASE WHEN $6 = 'accepted' THEN NOW() ELSE NULL END,
+					$8,
+					CASE WHEN $8 = 'confirmed_paid' THEN NOW() ELSE NULL END,
+					CASE WHEN $8 = 'confirmed_paid' THEN NOW() ELSE NULL END,
+					$9
+				)`,
 				[
 					participantId,
 					sharedTransactionId,
@@ -509,8 +604,9 @@ export const buildSharedTransactionController = (deps: AppDependency) => {
 					definition.participantContactId,
 					definition.amount,
 					definition.approvalStatus,
-					currentEditVersion,
-					previousCarryOver?.userTransactionId ?? null,
+					sharedTransaction.currentEditVersion,
+					isOwnerParticipant ? 'confirmed_paid' : 'unpaid',
+					userTransactionId,
 				],
 			)
 
@@ -526,11 +622,11 @@ export const buildSharedTransactionController = (deps: AppDependency) => {
 					title: options?.notificationType === 'share_updated' ? 'Shared transaction updated' : 'New shared transaction',
 					message:
 						options?.notificationType === 'share_updated'
-							? `The shared transaction "${description}" was updated`
-							: `You were added to "${description}"`,
+							? `The shared transaction "${sharedTransaction.description}" was updated`
+							: `You were added to "${sharedTransaction.description}"`,
 					relatedSharedTransactionId: sharedTransactionId,
 					relatedSharedParticipantId: participantId,
-					relatedTransactionId: previousCarryOver?.userTransactionId ?? null,
+					relatedTransactionId: userTransactionId,
 				})
 			}
 		}
@@ -609,13 +705,15 @@ export const buildSharedTransactionController = (deps: AppDependency) => {
 
 	const createSharedTransaction = async (req: FastifyRequest, res: FastifyReply) => {
 		const sessionUser = req.session.user!
-		const { groupId, type, totalAmount, description, notes, transactionDate, splitMethod, participantAmounts } =
+		const { groupId, type, ownerAccountId, ownerCategoryId, totalAmount, description, notes, transactionDate, splitMethod, participantAmounts } =
 			req.body as CreateSharedTransactionInput
 
 		const sharedTransactionId = randomUUID()
 
 		await db.transaction(async (tx) => {
 			await ensureOwnedGroup(tx, groupId, sessionUser.userId)
+			await ensureAccountOwned(tx, ownerAccountId, sessionUser.userId)
+			await ensureCategoryAccessible(tx, ownerCategoryId, sessionUser.userId, type)
 			const definitions = await buildParticipantDefinitions(
 				tx,
 				groupId,
@@ -652,7 +750,25 @@ export const buildSharedTransactionController = (deps: AppDependency) => {
 				],
 			)
 
-			await insertParticipants(tx, sharedTransactionId, sessionUser.userId, 1, description.trim(), definitions)
+			await insertParticipants(
+				tx,
+				sharedTransactionId,
+				sessionUser.userId,
+				{
+					type,
+					description: description.trim(),
+					notes: notes?.trim() ?? null,
+					transactionDate,
+					currentEditVersion: 1,
+				},
+				definitions,
+				{
+					ownerLedgerInput: {
+						accountId: ownerAccountId,
+						categoryId: ownerCategoryId,
+					},
+				},
+			)
 			await recomputeSharedTransactionStatus(tx, sharedTransactionId)
 		})
 
@@ -741,10 +857,23 @@ export const buildSharedTransactionController = (deps: AppDependency) => {
 				[id, nextTotalAmount, nextDescription, nextNotes, nextTransactionDate, nextSplitMethod, nextVersion],
 			)
 
-			await insertParticipants(tx, id, sessionUser.userId, nextVersion, nextDescription, definitions, {
-				notificationType: 'share_updated',
-				previousCarryOverByParticipantKey,
-			})
+			await insertParticipants(
+				tx,
+				id,
+				sessionUser.userId,
+				{
+					type: current.type,
+					description: nextDescription,
+					notes: nextNotes,
+					transactionDate: nextTransactionDate,
+					currentEditVersion: nextVersion,
+				},
+				definitions,
+				{
+					notificationType: 'share_updated',
+					previousCarryOverByParticipantKey,
+				},
+			)
 			await recomputeSharedTransactionStatus(tx, id)
 			payloadRows = payload.rows as SharedTransactionRow[]
 		})
