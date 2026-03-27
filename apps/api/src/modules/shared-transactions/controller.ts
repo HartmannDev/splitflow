@@ -11,6 +11,7 @@ import type {
 	AcceptSharedTransactionInput,
 	CreateSharedTransactionInput,
 	GetSharedTransactionsQueryType,
+	SharedTransactionDetailType,
 	SharedTransactionIdType,
 	SharedTransactionParticipantIdType,
 	SharedTransactionParticipantType,
@@ -19,7 +20,7 @@ import type {
 } from './model.ts'
 
 type Queryable = Pick<AppDependency['db'], 'query'>
-type SharedTransactionRow = Omit<SharedTransactionType, 'participants'>
+	type SharedTransactionRow = Omit<SharedTransactionDetailType, 'participants' | 'ownerAccountId' | 'ownerCategoryId'>
 type ParticipantRow = SharedTransactionParticipantType
 type GroupMemberLookup = {
 	id: string
@@ -95,6 +96,7 @@ export const buildSharedTransactionController = (deps: AppDependency) => {
 	const { badRequestError, notFoundError, forbiddenError } = AppError()
 	const {
 		SharedTransactionListSchema,
+		SharedTransactionDetailSchema,
 		SharedTransactionSchema,
 		SharedTransactionParticipantSchema,
 		CreateSharedTransactionResponseSchema,
@@ -148,6 +150,43 @@ export const buildSharedTransactionController = (deps: AppDependency) => {
 			...row,
 			participants: participantsBySharedTransaction.get(row.id) ?? [],
 		}))
+	}
+
+	const attachOwnerLedgerClassification = async (
+		sharedTransaction: SharedTransactionType,
+		requestUserId: string,
+		queryable: Queryable = db,
+	) => {
+		if (sharedTransaction.ownerUserId !== requestUserId) {
+			return sharedTransaction
+		}
+
+		const ownerParticipant = sharedTransaction.participants.find((participant) => participant.participantUserId === requestUserId)
+		if (!ownerParticipant?.userTransactionId) {
+			return sharedTransaction
+		}
+
+		const payload = await queryable.query(
+			`SELECT
+				account_id as "ownerAccountId",
+				category_id as "ownerCategoryId"
+			FROM transactions
+			WHERE id = $1
+				AND user_id = $2
+				AND deleted_at IS NULL`,
+			[ownerParticipant.userTransactionId, requestUserId],
+		)
+
+		const ownerLedger = payload.rows[0] as { ownerAccountId: string; ownerCategoryId: string | null } | undefined
+		if (!ownerLedger?.ownerCategoryId) {
+			return sharedTransaction
+		}
+
+		return {
+			...sharedTransaction,
+			ownerAccountId: ownerLedger.ownerAccountId,
+			ownerCategoryId: ownerLedger.ownerCategoryId,
+		}
 	}
 
 	const getSharedTransactionById = async (sharedTransactionId: string, queryable: Queryable = db) => {
@@ -508,10 +547,12 @@ export const buildSharedTransactionController = (deps: AppDependency) => {
 						description = $4,
 						notes = $5,
 						transaction_date = $6,
-						source_shared_transaction_participant_id = $7,
+						account_id = $7,
+						category_id = $8,
+						source_shared_transaction_participant_id = $9,
 						updated_at = NOW()
 					WHERE id = $1
-						AND user_id = $8
+						AND user_id = $10
 						AND deleted_at IS NULL
 					RETURNING id`,
 					[
@@ -521,6 +562,8 @@ export const buildSharedTransactionController = (deps: AppDependency) => {
 						sharedTransaction.description,
 						sharedTransaction.notes,
 						sharedTransaction.transactionDate,
+						options.ownerLedgerInput?.accountId,
+						options.ownerLedgerInput?.categoryId,
 						participantId,
 						ownerUserId,
 					],
@@ -683,7 +726,8 @@ export const buildSharedTransactionController = (deps: AppDependency) => {
 			throw notFoundError('Shared transaction not found')
 		}
 
-		return validatedResponse(res, 200, SharedTransactionSchema, sharedTransaction)
+		const response = await attachOwnerLedgerClassification(sharedTransaction, sessionUser.userId)
+		return validatedResponse(res, 200, SharedTransactionDetailSchema, response)
 	}
 
 	const getSharedTransactionParticipants = async (req: FastifyRequest, res: FastifyReply) => {
@@ -806,7 +850,18 @@ export const buildSharedTransactionController = (deps: AppDependency) => {
 			const nextNotes = input.notes === undefined ? current.notes : (input.notes?.trim() ?? null)
 			const nextTransactionDate = input.transactionDate ?? current.transactionDate
 			const nextSplitMethod = input.splitMethod ?? current.splitMethod
+			const nextOwnerAccountId = input.ownerAccountId
+			const nextOwnerCategoryId = input.ownerCategoryId
 			const nextVersion = current.currentEditVersion + 1
+
+			if ((nextOwnerAccountId && !nextOwnerCategoryId) || (!nextOwnerAccountId && nextOwnerCategoryId)) {
+				throw badRequestError('Owner account and category must be provided together')
+			}
+
+			if (nextOwnerAccountId && nextOwnerCategoryId) {
+				await ensureAccountOwned(tx, nextOwnerAccountId, sessionUser.userId)
+				await ensureCategoryAccessible(tx, nextOwnerCategoryId, sessionUser.userId, current.type)
+			}
 
 			const definitions = await buildParticipantDefinitions(
 				tx,
@@ -872,6 +927,13 @@ export const buildSharedTransactionController = (deps: AppDependency) => {
 				{
 					notificationType: 'share_updated',
 					previousCarryOverByParticipantKey,
+					ownerLedgerInput:
+						nextOwnerAccountId && nextOwnerCategoryId
+							? {
+									accountId: nextOwnerAccountId,
+									categoryId: nextOwnerCategoryId,
+								}
+							: undefined,
 				},
 			)
 			await recomputeSharedTransactionStatus(tx, id)

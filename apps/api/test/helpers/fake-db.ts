@@ -564,6 +564,11 @@ export class FakeDatabase {
 	}
 
 	private buildTransactionResponse(transaction: TransactionRow) {
+		const sharedTransactionId =
+			transaction.sourceSharedTransactionParticipantId
+				? this.sharedTransactionParticipants.get(transaction.sourceSharedTransactionParticipantId)?.sharedTransactionId ?? null
+				: null
+
 		return {
 			id: transaction.id,
 			userId: transaction.userId,
@@ -581,6 +586,7 @@ export class FakeDatabase {
 			transferDirection: transaction.transferDirection ?? null,
 			isFromShared: transaction.isFromShared ?? false,
 			sourceSharedTransactionParticipantId: transaction.sourceSharedTransactionParticipantId ?? null,
+			sharedTransactionId,
 			createdAt: transaction.createdAt,
 			updatedAt: transaction.updatedAt,
 			deletedAt: transaction.deletedAt,
@@ -1849,6 +1855,25 @@ export class FakeDatabase {
 			}
 		}
 
+		if (sql.includes('FROM transactions') && sql.includes('ownerAccountId') && sql.includes('ownerCategoryId')) {
+			const [id, userId] = queryParams as [string, string]
+			const transaction = this.transactions.get(id)
+
+			if (!transaction || transaction.userId !== userId || transaction.deletedAt !== null) {
+				return { rowCount: 0, rows: [] }
+			}
+
+			return {
+				rowCount: 1,
+				rows: [
+					{
+						ownerAccountId: transaction.accountId,
+						ownerCategoryId: transaction.categoryId,
+					},
+				],
+			}
+		}
+
 		if (sql.includes('FROM transactions') && sql.includes('WHERE id = $1') && sql.includes('user_id = $2')) {
 			const [id, userId] = queryParams as [string, string]
 			const transaction = this.transactions.get(id)
@@ -2742,14 +2767,16 @@ export class FakeDatabase {
 			return { rowCount: 1, rows: [] }
 		}
 
-		if (sql.includes('UPDATE transactions') && sql.includes('source_shared_transaction_participant_id = $7')) {
-			const [id, type, amount, description, notes, transactionDate, sourceSharedTransactionParticipantId, userId] = queryParams as [
+		if (sql.includes('UPDATE transactions') && sql.includes('source_shared_transaction_participant_id = $9')) {
+			const [id, type, amount, description, notes, transactionDate, accountId, categoryId, sourceSharedTransactionParticipantId, userId] = queryParams as [
 				string,
 				TransactionRow['type'],
 				string,
 				string,
 				string | null,
 				string,
+				string | undefined,
+				string | undefined,
 				string,
 				string,
 			]
@@ -2765,6 +2792,12 @@ export class FakeDatabase {
 			transaction.description = description.trim()
 			transaction.notes = notes
 			transaction.transactionDate = transactionDate
+			if (accountId) {
+				transaction.accountId = accountId
+			}
+			if (categoryId) {
+				transaction.categoryId = categoryId
+			}
 			transaction.sourceSharedTransactionParticipantId = sourceSharedTransactionParticipantId
 			transaction.updatedAt = new Date().toISOString()
 

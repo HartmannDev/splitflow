@@ -45,6 +45,11 @@ const SharedTransactionSchema = z.object({
 	deletedAt: z.iso.datetime({ offset: true }).nullable(),
 })
 
+const SharedTransactionDetailSchema = SharedTransactionSchema.extend({
+	ownerAccountId: z.uuid().optional(),
+	ownerCategoryId: z.uuid().optional(),
+})
+
 const ParticipantAmountSchema = z.object({
 	groupMemberId: z.uuid(),
 	amount: DecimalAmountSchema,
@@ -74,6 +79,8 @@ const CreateSharedTransactionSchema = z.object({
 
 const UpdateSharedTransactionSchema = z
 	.object({
+		ownerAccountId: z.uuid().optional(),
+		ownerCategoryId: z.uuid().optional(),
 		totalAmount: DecimalAmountSchema.optional(),
 		description: z.string().trim().min(1).optional(),
 		notes: z.string().trim().min(1).nullable().optional(),
@@ -113,6 +120,7 @@ export const SharedTransactionSchemas = () => {
 		ParticipantPaymentStatusSchema,
 		SharedTransactionParticipantSchema,
 		SharedTransactionSchema,
+		SharedTransactionDetailSchema,
 		ParticipantAmountSchema,
 		SharedTransactionIdSchema,
 		SharedTransactionParticipantIdSchema,
@@ -126,6 +134,7 @@ export const SharedTransactionSchemas = () => {
 }
 
 export type SharedTransactionType = z.infer<typeof SharedTransactionSchema>
+export type SharedTransactionDetailType = z.infer<typeof SharedTransactionDetailSchema>
 export type SharedTransactionIdType = z.infer<typeof SharedTransactionIdSchema>
 export type SharedTransactionParticipantIdType = z.infer<typeof SharedTransactionParticipantIdSchema>
 export type SharedTransactionParticipantType = z.infer<typeof SharedTransactionParticipantSchema>

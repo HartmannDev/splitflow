@@ -27,6 +27,7 @@ const TransactionSchema = z.object({
 	transferDirection: TransferDirectionSchema.nullable(),
 	isFromShared: z.boolean(),
 	sourceSharedTransactionParticipantId: z.uuid().nullable(),
+	sharedTransactionId: z.uuid().nullable(),
 	createdAt: z.iso.datetime({ offset: true }),
 	updatedAt: z.iso.datetime({ offset: true }),
 	deletedAt: z.iso.datetime({ offset: true }).nullable(),

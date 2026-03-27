@@ -98,6 +98,15 @@ describe('shared transactions integration', () => {
 			initialValue: '0',
 		})
 		seedAccount({
+			id: '80000000-0000-4000-8000-000000000002',
+			userId: ownerId,
+			currencyCode: 'USD',
+			name: 'Owner Savings',
+			icon: 'banknote',
+			color: '#9333ea',
+			initialValue: '0',
+		})
+		seedAccount({
 			id: '80000000-0000-4000-8000-000000000001',
 			userId: participantId,
 			currencyCode: 'USD',
@@ -114,6 +123,15 @@ describe('shared transactions integration', () => {
 			icon: 'users',
 			color: '#16a34a',
 			isDefault: true,
+		})
+		seedCategory({
+			id: '80000000-0000-4000-8000-000000000012',
+			userId: ownerId,
+			type: 'expense',
+			name: 'Owner Shared Expense',
+			icon: 'receipt',
+			color: '#dc2626',
+			isDefault: false,
 		})
 		seedContact({
 			id: '80000000-0000-4000-8000-000000000020',
@@ -194,6 +212,8 @@ describe('shared transactions integration', () => {
 				]),
 			}),
 		])
+		expect(ownerListResponse.json()[0]).not.toHaveProperty('ownerAccountId')
+		expect(ownerListResponse.json()[0]).not.toHaveProperty('ownerCategoryId')
 
 		const ownerTransactionsResponse = await app.inject({
 			method: 'GET',
@@ -210,8 +230,24 @@ describe('shared transactions integration', () => {
 				accountId: '80000000-0000-4000-8000-000000000000',
 				categoryId: '80000000-0000-4000-8000-000000000010',
 				isFromShared: true,
+				sharedTransactionId,
 			}),
 		])
+
+		const ownerDetailResponse = await app.inject({
+			method: 'GET',
+			url: `/shared-transactions/${sharedTransactionId}`,
+			headers: { cookie: ownerCookie },
+		})
+
+		expect(ownerDetailResponse.statusCode).toBe(200)
+		expect(ownerDetailResponse.json()).toEqual(
+			expect.objectContaining({
+				id: sharedTransactionId,
+				ownerAccountId: '80000000-0000-4000-8000-000000000000',
+				ownerCategoryId: '80000000-0000-4000-8000-000000000010',
+			}),
+		)
 
 		const { cookie: participantCookie } = await login('participant@example.com', validPassword)
 		const participantNotificationsResponse = await app.inject({
@@ -235,6 +271,8 @@ describe('shared transactions integration', () => {
 		})
 
 		expect(participantSharedResponse.statusCode).toBe(200)
+		expect(participantSharedResponse.json()).not.toHaveProperty('ownerAccountId')
+		expect(participantSharedResponse.json()).not.toHaveProperty('ownerCategoryId')
 		const participantRecord = participantSharedResponse
 			.json()
 			.participants.find((participant: { participantUserId: string | null }) => participant.participantUserId === participantId)
@@ -282,6 +320,7 @@ describe('shared transactions integration', () => {
 				description: 'Weekend house',
 				isFromShared: true,
 				categoryId: '80000000-0000-4000-8000-000000000010',
+				sharedTransactionId,
 			}),
 		])
 
@@ -293,6 +332,8 @@ describe('shared transactions integration', () => {
 				description: 'Weekend house updated',
 				totalAmount: '120',
 				splitMethod: 'equal',
+				ownerAccountId: '80000000-0000-4000-8000-000000000002',
+				ownerCategoryId: '80000000-0000-4000-8000-000000000012',
 			},
 		})
 
@@ -320,9 +361,10 @@ describe('shared transactions integration', () => {
 				type: 'expense',
 				status: 'done',
 				description: 'Weekend house updated',
-				accountId: '80000000-0000-4000-8000-000000000000',
-				categoryId: '80000000-0000-4000-8000-000000000010',
+				accountId: '80000000-0000-4000-8000-000000000002',
+				categoryId: '80000000-0000-4000-8000-000000000012',
 				isFromShared: true,
+				sharedTransactionId,
 			}),
 		])
 
@@ -499,6 +541,7 @@ describe('shared transactions integration', () => {
 				accountId: '80000000-0000-4000-8000-000000000000',
 				categoryId: '80000000-0000-4000-8000-000000000011',
 				isFromShared: true,
+				sharedTransactionId,
 			}),
 		])
 
@@ -540,6 +583,7 @@ describe('shared transactions integration', () => {
 				description: 'Cashback',
 				categoryId: '80000000-0000-4000-8000-000000000011',
 				isFromShared: true,
+				sharedTransactionId,
 			}),
 		])
 	})

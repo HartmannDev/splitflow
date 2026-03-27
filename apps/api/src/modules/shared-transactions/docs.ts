@@ -12,6 +12,7 @@ import type { FastifyOpenApiSchema } from '../../types/swagger.ts'
 
 export const buildSharedTransactionDocs = () => {
 	const {
+		SharedTransactionDetailSchema,
 		SharedTransactionSchema,
 		SharedTransactionParticipantSchema,
 		SharedTransactionIdSchema,
@@ -27,7 +28,7 @@ export const buildSharedTransactionDocs = () => {
 	const messageSchema = z.object({ message: z.string() })
 
 	const getSharedTransactionsDocs: FastifyOpenApiSchema = {
-		description: 'Get shared transactions visible to the current user',
+		description: 'Get shared transactions visible to the current user with shared/common data and participants only',
 		tags: ['Shared Transactions'],
 		querystring: GetSharedTransactionsQuerySchema,
 		security: [{ cookieAuth: [] }],
@@ -39,12 +40,12 @@ export const buildSharedTransactionDocs = () => {
 	}
 
 	const getSharedTransactionDocs: FastifyOpenApiSchema = {
-		description: 'Get one shared transaction visible to the current user',
+		description: 'Get one shared transaction visible to the current user, with owner-only account/category prefill fields included only for the owner',
 		tags: ['Shared Transactions'],
 		params: SharedTransactionIdSchema,
 		security: [{ cookieAuth: [] }],
 		response: {
-			200: SharedTransactionSchema.describe('Successful response with one shared transaction'),
+			200: SharedTransactionDetailSchema.describe('Successful response with one shared transaction'),
 			401: UnauthorizedErrorResponseSchema.describe('Unauthorized: You must be logged in to access this resource'),
 			404: NotFoundErrorResponseSchema.describe('Not Found: Shared transaction does not exist'),
 			500: InternalServerErrorResponseSchema.describe('Internal Server Error: Unexpected error'),
@@ -65,7 +66,7 @@ export const buildSharedTransactionDocs = () => {
 	}
 
 	const createSharedTransactionDocs: FastifyOpenApiSchema = {
-		description: 'Create a shared transaction for an owned group and create the owner ledger transaction immediately',
+		description: 'Create a shared income or expense transaction for an owned group and create the owner ledger transaction immediately',
 		tags: ['Shared Transactions'],
 		body: CreateSharedTransactionSchema,
 		security: [{ cookieAuth: [] }],
@@ -78,7 +79,7 @@ export const buildSharedTransactionDocs = () => {
 	}
 
 	const updateSharedTransactionDocs: FastifyOpenApiSchema = {
-		description: 'Update a shared transaction and reset approvals to the new edit version',
+		description: 'Update a shared transaction, optionally move the owner ledger account/category, and reset approvals to the new edit version',
 		tags: ['Shared Transactions'],
 		params: SharedTransactionIdSchema,
 		body: UpdateSharedTransactionSchema,

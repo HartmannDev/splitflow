@@ -49,6 +49,11 @@ const transactionSelectSql = `SELECT
 			transfer_direction as "transferDirection",
 			is_from_shared as "isFromShared",
 			source_shared_transaction_participant_id as "sourceSharedTransactionParticipantId",
+			(
+				SELECT shared_transaction_id
+				FROM shared_transaction_participants
+				WHERE id = transactions.source_shared_transaction_participant_id
+			) as "sharedTransactionId",
 			to_json(created_at) as "createdAt",
 			to_json(updated_at) as "updatedAt",
 			to_json(deleted_at) as "deletedAt"
