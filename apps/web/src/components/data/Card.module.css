@@ -1,0 +1,16 @@
+.card {
+	position: relative;
+	display: grid;
+	gap: var(--space-4);
+	padding: var(--space-6);
+	border: 1px solid var(--glass-border);
+	border-radius: 18px;
+	background: linear-gradient(180deg, color-mix(in srgb, var(--color-surface) 96%, transparent), color-mix(in srgb, var(--color-surface-muted) 92%, transparent)), var(--color-surface);
+	box-shadow: var(--shadow-card);
+}
+
+.muted {
+	border-color: var(--color-border);
+	background: linear-gradient(180deg, color-mix(in srgb, var(--color-surface-muted) 96%, transparent), color-mix(in srgb, var(--color-surface) 88%, transparent));
+	box-shadow: none;
+}

@@ -1,0 +1,22 @@
+.wrapper {
+	display: grid;
+	justify-items: start;
+	gap: var(--space-3);
+	padding: var(--space-6);
+	border: 1px dashed rgb(40 179 132 / 0.22);
+	border-radius: 18px;
+	background:
+		radial-gradient(circle at top right, rgb(40 179 132 / 0.08), transparent 40%),
+		linear-gradient(180deg, color-mix(in srgb, var(--color-surface) 92%, transparent), color-mix(in srgb, var(--color-surface-muted) 94%, transparent));
+}
+
+.title {
+	font-size: 1.125rem;
+	font-weight: 800;
+	color: var(--color-ink);
+}
+
+.message {
+	max-width: 58ch;
+	color: var(--color-foreground-muted);
+}

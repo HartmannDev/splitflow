@@ -1,0 +1,144 @@
+.picker {
+	position: relative;
+}
+
+.pickerButton {
+	width: 100%;
+	min-height: 48px;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--space-3);
+	padding: 8px 14px;
+	border: 1px solid var(--color-border);
+	border-radius: 12px;
+	background: color-mix(in srgb, var(--color-surface) 92%, transparent);
+	color: var(--color-ink);
+	text-align: left;
+	transition:
+		border-color var(--transition-base),
+		box-shadow var(--transition-base),
+		background-color var(--transition-base);
+}
+
+.pickerButton:hover {
+	border-color: var(--color-border-strong);
+}
+
+.pickerButton:focus-visible {
+	outline: none;
+	border-color: rgb(40 179 132 / 0.48);
+	box-shadow: var(--shadow-focus);
+	background: var(--color-surface);
+}
+
+.pickerChevron {
+	flex: 0 0 auto;
+	color: var(--color-foreground-muted);
+}
+
+.placeholder {
+	color: #93a19a;
+}
+
+.pickerMenu {
+	position: absolute;
+	left: 0;
+	right: 0;
+	z-index: 12;
+	display: grid;
+	gap: 0;
+	border: 1px solid var(--color-border);
+	border-radius: 12px;
+	background: var(--color-surface);
+	box-shadow: 0 18px 48px rgb(15 23 42 / 0.14);
+	overflow: hidden;
+}
+
+.menuBottom {
+	top: calc(100% + 8px);
+}
+
+.menuTop {
+	bottom: calc(100% + 8px);
+}
+
+.pickerList {
+	display: grid;
+}
+
+.pickerItem {
+	display: flex;
+	align-items: center;
+	width: 100%;
+	padding: 10px 12px;
+	border: 0;
+	border-bottom: 1px solid var(--color-border);
+	background: transparent;
+	text-align: left;
+}
+
+.pickerItem:last-child {
+	border-bottom: 0;
+}
+
+.pickerItemActive {
+	background: rgb(40 179 132 / 0.08);
+}
+
+.createItemButton {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: var(--space-2);
+	width: 100%;
+	min-height: 44px;
+	border: 0;
+	border-top: 1px solid var(--color-border);
+	background: linear-gradient(180deg, rgb(40 179 132 / 0.14), rgb(40 179 132 / 0.07));
+	color: var(--color-primary-strong);
+	font-weight: 800;
+}
+
+.optionLead {
+	display: flex;
+	align-items: center;
+	gap: var(--space-3);
+	min-width: 0;
+}
+
+.optionBadge {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 28px;
+	height: 28px;
+	border-radius: 10px;
+	flex: 0 0 auto;
+}
+
+.optionText {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-width: 0;
+}
+
+.optionLabel {
+	font-size: 0.9rem;
+	font-weight: 700;
+	color: var(--color-ink);
+}
+
+.optionMeta {
+	font-size: 0.78rem;
+	color: var(--color-foreground-muted);
+	white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+	.optionText {
+		flex-wrap: wrap;
+		gap: 4px 8px;
+	}
+}

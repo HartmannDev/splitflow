@@ -1,0 +1,159 @@
+.desktopTable {
+	display: block;
+}
+
+.mobileCards {
+	display: none;
+}
+
+.iconBadge {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 28px;
+	height: 28px;
+	border-radius: 10px;
+	flex: 0 0 auto;
+}
+
+.entityChip {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	min-width: 0;
+	padding: 6px 10px 6px 6px;
+	border: 1px solid var(--color-border);
+	border-radius: 999px;
+	background: color-mix(in srgb, var(--color-surface-elevated) 92%, transparent);
+	font-size: 0.88rem;
+	font-weight: 700;
+	color: var(--color-ink);
+}
+
+.tagPill {
+	display: inline-flex;
+	align-items: center;
+	padding: 6px 10px;
+	border-radius: 999px;
+	font-size: 0.82rem;
+	font-weight: 700;
+}
+
+.mutedValue {
+	color: var(--color-foreground-muted);
+}
+
+.mobileCard {
+	display: grid;
+	gap: var(--space-3);
+	padding: var(--space-4);
+	border: 1px solid var(--color-border);
+	border-radius: 12px;
+	background: linear-gradient(180deg, color-mix(in srgb, var(--color-surface) 94%, transparent), color-mix(in srgb, var(--color-surface-muted) 96%, transparent));
+	box-shadow: 0 10px 24px rgb(16 33 29 / 0.06);
+}
+
+.mobileCard + .mobileCard {
+	margin-top: var(--space-3);
+}
+
+.mobileCardHeader {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: var(--space-3);
+}
+
+.mobileCardDate {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	color: var(--color-foreground-muted);
+	font-size: 0.88rem;
+	font-weight: 700;
+}
+
+.mobileCardBody {
+	display: grid;
+	gap: var(--space-3);
+}
+
+.mobileTitleBlock {
+	display: grid;
+	gap: var(--space-3);
+}
+
+.mobileTitleRow {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: var(--space-3);
+}
+
+.mobileStateIcons {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--space-2);
+	flex: 0 0 auto;
+}
+
+.mobileStateButton {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 28px;
+	height: 28px;
+	padding: 0;
+	border: 1px solid var(--color-border);
+	border-radius: 10px;
+	background: color-mix(in srgb, var(--color-surface-elevated) 92%, transparent);
+	color: var(--color-ink);
+}
+
+.mobileEntityRow {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: var(--space-2);
+}
+
+.mobileTagsPanel {
+	padding-top: var(--space-1);
+}
+
+@media (max-width: 760px) {
+	.desktopTable {
+		display: none;
+	}
+
+	.mobileCards {
+		display: block;
+	}
+
+	.entityChip {
+		width: 100%;
+		padding: 5px 8px 5px 5px;
+		font-size: 0.84rem;
+	}
+
+	.iconBadge,
+	.mobileStateButton {
+		width: 26px;
+		height: 26px;
+	}
+
+	.mobileCard {
+		gap: var(--space-2);
+		padding: 12px;
+	}
+
+	.mobileCard + .mobileCard {
+		margin-top: var(--space-2);
+	}
+
+	.mobileCardHeader,
+	.mobileCardBody,
+	.mobileTitleBlock,
+	.mobileTitleRow {
+		gap: var(--space-2);
+	}
+}

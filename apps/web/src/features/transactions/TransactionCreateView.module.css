@@ -1,0 +1,452 @@
+.formCard {
+	padding: 0;
+	overflow: visible;
+}
+
+.formList {
+	display: grid;
+}
+
+.formRow {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr);
+	gap: var(--space-3);
+	padding: 16px;
+	border-bottom: 1px solid var(--color-border);
+}
+
+.formRow:last-child {
+	border-bottom: 0;
+}
+
+.rowIcon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 40px;
+	height: 40px;
+	border-radius: 12px;
+	flex: 0 0 auto;
+	background: color-mix(in srgb, var(--color-surface-muted) 86%, transparent);
+	color: var(--color-ink);
+	border: 1px solid var(--color-border);
+}
+
+.rowField {
+	display: grid;
+	gap: var(--space-2);
+	min-width: 0;
+}
+
+.rowLabel {
+	font-size: 0.9rem;
+	font-weight: 800;
+	color: var(--color-ink);
+}
+
+.rowHint {
+	font-size: 0.84rem;
+	color: var(--color-foreground-muted);
+}
+
+.splitFields {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	gap: var(--space-2);
+}
+
+.statusToggle {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: var(--space-2);
+	min-height: 48px;
+	padding: 0 14px;
+	border: 1px solid var(--color-border);
+	border-radius: 12px;
+	background: color-mix(in srgb, var(--color-surface) 92%, transparent);
+	color: var(--color-ink);
+	font-size: 0.88rem;
+	font-weight: 700;
+}
+
+.statusDot {
+	width: 8px;
+	height: 8px;
+	border-radius: 999px;
+	background: var(--color-warning);
+}
+
+.statusToggleActive {
+	border-color: rgb(40 179 132 / 0.26);
+	background: rgb(40 179 132 / 0.08);
+	color: var(--color-primary-strong);
+}
+
+.statusToggleActive .statusDot {
+	background: var(--color-primary);
+}
+
+.dateRow {
+	display: grid;
+	gap: var(--space-3);
+}
+
+.dateShortcutRow,
+.choiceRow {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--space-2);
+}
+
+.dateShortcutButton,
+.choiceButton {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-height: 38px;
+	padding: 0 12px;
+	border: 1px solid var(--color-border);
+	border-radius: 999px;
+	background: color-mix(in srgb, var(--color-surface) 92%, transparent);
+	color: var(--color-ink);
+	font-size: 0.88rem;
+	font-weight: 700;
+}
+
+.dateShortcutButtonActive,
+.choiceButtonActive {
+	border-color: rgb(40 179 132 / 0.26);
+	background: rgb(40 179 132 / 0.08);
+	color: var(--color-primary-strong);
+}
+
+.centeredHeader {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--space-3);
+}
+
+.centeredHeaderLabel {
+	display: inline-flex;
+	align-items: center;
+	min-height: 40px;
+	font-size: 0.92rem;
+	font-weight: 800;
+	color: var(--color-ink);
+}
+
+.toggleButton {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--space-2);
+	width: fit-content;
+	padding: 6px 8px;
+	border: 1px solid var(--color-border);
+	border-radius: 999px;
+	background: var(--color-surface);
+	color: var(--color-ink);
+	font-size: 0.88rem;
+	font-weight: 700;
+}
+
+.toggleTrack {
+	position: relative;
+	display: inline-flex;
+	width: 36px;
+	height: 20px;
+	border-radius: 999px;
+	background: color-mix(in srgb, var(--color-surface-muted) 80%, var(--color-border));
+}
+
+.toggleThumb {
+	position: absolute;
+	top: 2px;
+	left: 2px;
+	width: 16px;
+	height: 16px;
+	border-radius: 999px;
+	background: #ffffff;
+	box-shadow: 0 2px 8px rgb(16 33 29 / 0.12);
+	transition: transform var(--transition-base);
+}
+
+.toggleButtonActive {
+	border-color: rgb(40 179 132 / 0.26);
+	background: rgb(40 179 132 / 0.08);
+	color: var(--color-primary-strong);
+}
+
+.toggleButtonActive .toggleTrack {
+	background: linear-gradient(180deg, var(--color-primary), var(--color-primary-strong));
+}
+
+.toggleButtonActive .toggleThumb {
+	transform: translateX(16px);
+}
+
+.picker {
+	position: relative;
+}
+
+.pickerButton {
+	width: 100%;
+	min-height: 48px;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--space-3);
+	padding: 8px 14px;
+	border: 1px solid var(--color-border);
+	border-radius: 12px;
+	background: color-mix(in srgb, var(--color-surface) 92%, transparent);
+	color: var(--color-ink);
+	text-align: left;
+}
+
+.pickerChevron {
+	flex: 0 0 auto;
+	color: var(--color-foreground-muted);
+}
+
+.placeholder {
+	color: #93a19a;
+}
+
+.pickerMenu {
+	position: absolute;
+	bottom: calc(100% + 8px);
+	left: 0;
+	right: 0;
+	z-index: 12;
+	display: grid;
+	gap: 0;
+	border: 1px solid var(--color-border);
+	border-radius: 12px;
+	background: var(--color-surface);
+	box-shadow: 0 18px 48px rgb(15 23 42 / 0.14);
+	overflow: hidden;
+}
+
+.pickerList {
+	display: grid;
+}
+
+.pickerItem {
+	display: flex;
+	align-items: center;
+	width: 100%;
+	padding: 10px 12px;
+	border: 0;
+	border-bottom: 1px solid var(--color-border);
+	background: transparent;
+	text-align: left;
+}
+
+.pickerItemActive {
+	background: rgb(40 179 132 / 0.08);
+}
+
+.createItemButton {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: var(--space-2);
+	width: 100%;
+	min-height: 44px;
+	border: 0;
+	border-top: 1px solid var(--color-border);
+	background: linear-gradient(180deg, rgb(40 179 132 / 0.14), rgb(40 179 132 / 0.07));
+	color: var(--color-primary-strong);
+	font-weight: 800;
+}
+
+.optionLead {
+	display: flex;
+	align-items: center;
+	gap: var(--space-3);
+	min-width: 0;
+}
+
+.optionBadge {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 28px;
+	height: 28px;
+	border-radius: 10px;
+	flex: 0 0 auto;
+}
+
+.optionText {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-width: 0;
+}
+
+.optionLabel {
+	font-size: 0.9rem;
+	font-weight: 700;
+	color: var(--color-ink);
+}
+
+.optionMeta {
+	font-size: 0.78rem;
+	color: var(--color-foreground-muted);
+	white-space: nowrap;
+}
+
+.selectedTags {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+
+.selectedTag {
+	display: inline-flex;
+	align-items: center;
+	min-height: 28px;
+	padding: 0 10px;
+	border-radius: 999px;
+	font-size: 0.8rem;
+	font-weight: 700;
+}
+
+.inlineDetails {
+	display: grid;
+	gap: var(--space-2);
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.sharedTopRow {
+	display: grid;
+	gap: var(--space-2);
+	grid-template-columns: minmax(0, 1fr) auto;
+	align-items: start;
+}
+
+.inlineFieldGroup {
+	display: grid;
+	grid-template-columns: auto 1fr;
+	align-items: center;
+	gap: var(--space-2);
+}
+
+.inlineFieldLabel {
+	font-size: 0.84rem;
+	font-weight: 800;
+	color: var(--color-foreground-muted);
+}
+
+.recurringDetails {
+	display: grid;
+	gap: var(--space-2);
+}
+
+.stackFields {
+	display: grid;
+	gap: var(--space-2);
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.groupMembers {
+	display: grid;
+	gap: var(--space-2);
+	grid-column: 1 / -1;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.memberChip {
+	display: inline-flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--space-2);
+	padding: 6px 10px 6px 6px;
+	border: 1px solid var(--color-border);
+	border-radius: 999px;
+	background: color-mix(in srgb, var(--color-surface-elevated) 92%, transparent);
+	font-size: 0.88rem;
+	font-weight: 700;
+	color: var(--color-ink);
+}
+
+.memberAvatar {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 24px;
+	border-radius: 999px;
+	background: rgb(40 179 132 / 0.14);
+	color: var(--color-primary-strong);
+	font-size: 0.76rem;
+	font-weight: 800;
+}
+
+.fixedSplitTable {
+	display: grid;
+	gap: var(--space-2);
+	grid-column: 1 / -1;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.fixedSplitRow {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) 110px;
+	gap: var(--space-2);
+	align-items: center;
+}
+
+.footerActions {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+	gap: var(--space-3);
+}
+
+@media (max-width: 760px) {
+	.formRow {
+		padding: 12px;
+	}
+
+	.splitFields {
+		grid-template-columns: 1fr;
+	}
+
+	.inlineDetails {
+		grid-template-columns: 1fr;
+	}
+
+	.sharedTopRow {
+		grid-template-columns: 1fr;
+	}
+
+	.inlineFieldGroup,
+	.stackFields {
+		grid-template-columns: 1fr;
+	}
+
+	.centeredHeader {
+		align-items: center;
+	}
+
+	.optionText {
+		flex-wrap: wrap;
+		gap: 4px 8px;
+	}
+
+	.fixedSplitRow {
+		grid-template-columns: 1fr;
+	}
+
+	.groupMembers,
+	.fixedSplitTable {
+		grid-template-columns: 1fr;
+	}
+
+	.footerActions > * {
+		flex: 1 1 100%;
+	}
+}

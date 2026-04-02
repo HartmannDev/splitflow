@@ -1,0 +1,44 @@
+.brand {
+	display: inline-flex;
+	align-items: center;
+	gap: 12px;
+}
+
+.logoWrap {
+	display: grid;
+	place-items: center;
+	width: 44px;
+	height: 44px;
+	border-radius: 14px;
+	background: linear-gradient(180deg, color-mix(in srgb, var(--color-surface) 92%, transparent), color-mix(in srgb, var(--color-surface-muted) 92%, transparent));
+	border: 1px solid var(--glass-border);
+	box-shadow: 0 10px 24px rgb(16 33 29 / 0.08);
+	overflow: hidden;
+}
+
+.logo {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+
+.text {
+	display: grid;
+	gap: 2px;
+}
+
+.title {
+	font-size: 1rem;
+	font-weight: 800;
+	letter-spacing: -0.02em;
+	color: inherit;
+}
+
+.subtitle {
+	font-size: 0.8rem;
+	color: var(--color-foreground-muted);
+}
+
+.inverse .subtitle {
+	color: var(--sidebar-muted);
+}
