@@ -1,26 +1,23 @@
-import { request } from '@/lib/api/request'
+import { apiRequest } from '@/lib/api/request'
+
 import type { AuthMessageResponse, AuthUser, LoginInput, SignupInput, SignupResponse } from '@/types/auth'
 
 export function getCurrentUser() {
-	return request<AuthUser | null>('/me')
+	return apiRequest('/me', 'get') as Promise<AuthUser | null>
 }
 
 export function login(input: LoginInput) {
-	return request<AuthMessageResponse>('/login', {
-		method: 'POST',
+	return apiRequest('/login', 'post', {
 		body: input,
-	})
+	}) as Promise<AuthMessageResponse>
 }
 
 export function logout() {
-	return request<AuthMessageResponse>('/logout', {
-		method: 'POST',
-	})
+	return apiRequest('/logout', 'post') as Promise<AuthMessageResponse>
 }
 
 export function signup(input: SignupInput) {
-	return request<SignupResponse>('/signup', {
-		method: 'POST',
+	return apiRequest('/signup', 'post', {
 		body: input,
-	})
+	}) as Promise<SignupResponse>
 }
