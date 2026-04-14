@@ -287,6 +287,7 @@ export function DashboardView() {
 					<div className="section-title">Needs attention</div>
 					<EmptyState
 						title="Nothing urgent at the moment"
+						message="You don't have any pending notifications or shared transaction actions right now."
 						action={
 							<Button variant="secondary">
 								Open notifications

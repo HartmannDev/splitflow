@@ -10,6 +10,8 @@ yarn.lock
 apps/api/build/
 apps/api/dist/
 apps/api/out/
+apps/web/dist/
+*.tsbuildinfo
 
 # IDE
 .vscode/
