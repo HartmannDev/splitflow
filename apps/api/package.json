@@ -6,6 +6,9 @@
 	"scripts": {
 		"dev": "nodemon -L --watch src --ext ts --exec \"node --env-file=.env\" src/server.ts",
 		"migrate": "node --env-file=.env src/db/migrate.ts",
+		"seed": "node --env-file=.env src/db/seed-demo.ts",
+		"seed:base": "node --env-file=.env src/db/seed-base.ts",
+		"seed:demo": "node --env-file=.env src/db/seed-demo.ts",
 		"test": "vitest run --environment=node --pool=threads",
 		"test:watch": "vitest --environment=node --pool=threads",
 		"test:unit": "vitest run --environment=node --pool=threads test/unit"
