@@ -1,34 +1,8 @@
-export type UserRole = 'user' | 'admin'
+import type { JsonRequestBody, JsonResponse } from '@/types/api'
 
-export type AuthUser = {
-	id: string
-	role: UserRole
-	name: string
-	lastname: string
-	email: string
-	isActive: boolean
-	emailVerifiedAt: string | null
-	createdAt: string
-	updatedAt: string
-	deletedAt: string | null
-}
-
-export type LoginInput = {
-	email: string
-	password: string
-}
-
-export type SignupInput = {
-	name: string
-	lastname: string
-	email: string
-	password: string
-}
-
-export type AuthMessageResponse = {
-	message: string
-}
-
-export type SignupResponse = AuthMessageResponse & {
-	userID: string
-}
+export type LoginInput = JsonRequestBody<'/login', 'post'>
+export type SignupInput = JsonRequestBody<'/signup', 'post'>
+export type AuthMessageResponse = JsonResponse<'/login', 'post', '200'>
+export type SignupResponse = JsonResponse<'/signup', 'post', '201'>
+export type AuthUser = JsonResponse<'/me', 'get', '200'>
+export type UserRole = AuthUser['role']
